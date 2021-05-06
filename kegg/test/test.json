@@ -1,0 +1,8 @@
+{
+  "inputFile": "./test.xlsx",
+  "type": "uniprot",
+  "Statistics": {
+    "anova": 0.05,
+    "value": "anova_only"
+  }
+}

@@ -1,0 +1,168 @@
+<tool id="unicity_checker_test" name="Unicity checker" version="1.1.1">
+    <description>Checks peptide unicity</description>
+    <requirements>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/unicity_checker.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+      <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <conditional name="peptides">
+            <param name="source" type="select" display="radio" label="Select source">
+                <option value="list" selected="true">Peptide list</option>
+                <option value="file">Text file</option>
+                <option value="xlsx">Excel file</option>
+            </param>
+            <when value="xlsx">
+                <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel file" />
+                <param name="sheetNumber" label="Number of the sheet containing the peptides" type="integer" value="1" help="" />
+                <param name="cellAddress" label="Address of the first peptide" type="text" value="A2">
+                  <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
+                </param>
+            </when>
+            <when value="list">
+                <param name="peptideList" label="Peptide list" type="text" area="true" />
+            </when>
+            <when value="file">
+                <param format="txt" name="peptideFile" type="data" label="Peptide file" multiple="false" />
+            </when>
+        </conditional>
+        <param format="fasta" name="fasta" type="data" label="Fasta file" multiple="false"/>
+
+        <param name="enzyme" type="select" label="Select enzyme" help="If no enzyme is selected, the peptides will be searched within the complete protein sequence">
+            <option value="0" selected="true">No enzyme</option>
+            <option value="1">Trypsin</option>
+            <option value="2">Trypsin/P</option>
+            <option value="3">Arg-C</option>
+            <option value="4">Asp-N</option>
+            <option value="5">Asp-N_ambic</option>
+            <option value="6">Chymotrypsin</option>
+            <option value="7">CNBr</option>
+            <option value="8">CNBr+Trypsin</option>
+            <option value="9">Formic_acid</option>
+            <option value="10">Lys-C</option>
+            <option value="11">Lys-C/P</option>
+            <option value="12">LysC+AspN</option>
+            <option value="13">Lys-N</option>
+            <option value="14">PepsinA</option>
+            <option value="15">semiTrypsin</option>
+            <option value="16">TrypChymo</option>
+            <option value="17">TrypsinMSIPI</option>
+            <option value="18">TrypsinMSIPI/P</option>
+            <option value="19">V8-DE</option>
+            <option value="20">V8-E</option>
+            <option value="21">GluC</option>
+        </param>
+        <section name="jokers" title="Jokers" expanded="false" help="Jokers are not allowed by default because they  do not seem to be used in Mascot's enzyme configuration page.">
+          <param name="B" type="boolean" display="checkboxes" checked="no" label="Authorize B to match for D and N" />
+          <param name="J" type="boolean" display="checkboxes" checked="no" label="Authorize J to match for I and L" />
+        </section>
+    </inputs>
+    <outputs>
+        <data format="xlsx" name="output" label="UnicityChecker-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <conditional name="peptides">
+                <param name="source" value="list" />
+                <param name="peptideList" value="RDYSKYYKTIDDLKNQILNLTTD" />
+            </conditional>
+            <param name="fasta" value="test/keratin.fasta" />
+            <param name="enzyme" value="0" />
+            <section name="jokers">
+                <param name="B" value="false" />
+                <param name="J" value="false" />
+            </section>
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+**What it does**
+
+Checks for each peptide whether it's unique or shared in the fasta file.
+
+Returns an Excel file listing for each peptide the protein it can be found in, with the start and stop positions.
+
+The enzyme definitions are based on Mascot's enzyme configuration page. Columns are explained after the table.
+
++-------------------+--------+-----------+------------+-------------+-------------+
+| Title             | Sense  | Cleave At | Restrict   |Independent  |Semispecific |
++===================+========+===========+============+=============+=============+
+| Trypsin           | C-Term | KR        | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Trypsin/P         | C-Term | KR        |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Arg-C             | C-Term | R         | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Asp-N             | N-Term | BD        |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Asp-N_ambic       | N-Term | DE        |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Chymotrypsin      | C-Term | FLWY      | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| CNBr              | C-Term | M         |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+|                   | C-Term | M         |            | no          | no          |
++ CNBr+Trypsi       +--------+-----------+------------+-------------+-------------+
+|                   | C-Term | KR        | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+|                   | N-Term | D         |            | no          | no          |
++ Formic_acid       +--------+-----------+------------+-------------+-------------+
+|                   | C-Term | D         |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Lys-C             | C-Term | K         | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Lys-C/P           | C-Term | K         |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+|                   | N-Term | BD        |            | no          | no          |
++ LysC+AspN         +--------+-----------+------------+-------------+-------------+
+|                   | C-Term | K         | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| Lys-N             | N-Term | K         |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| PepsinA           | C-Term | FL        |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| semiTrypsin       | C-Term | KR        | P          | no          | yes         |
++-------------------+--------+-----------+------------+-------------+-------------+
+| TrypChymo         | C-Term | FKLRWY    | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+|                   | N-Term | J         |            | no          | no          |
++                   +--------+-----------+------------+-------------+-------------+
+| TrypsinMSIPI      | C-Term | KR        | P          | no          | no          |
++                   +--------+-----------+------------+-------------+-------------+
+|                   | C-Term | J         |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+|                   | N-Term | J         |            | no          | no          |
++ TrypsinMSIPI/P    +--------+-----------+------------+-------------+-------------+
+|                   | C-Term | JKR       |            | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| V8-DE             | C-Term | BDEZ      | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| V8-E              | C-Term | EZ        | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+| GluC              | C-Term | DE        | P          | no          | no          |
++-------------------+--------+-----------+------------+-------------+-------------+
+
+* Sense: Whether cleavage occurs on the C terminal or N terminal side of the residues specified under Cleave At.
+* Cleave At: A list of the residue 1 letter codes at which cleavage occurs.
+* Restrict: A list of the residue 1 letter codes which prevent cleavage if present adjacent to the potential cleavage site.
+* Independent: When value is 'no', if there are multiple components, these are combined, as if multiple enzymes had been applied simultaneously or serially to a single sample aliquot. When value is 'yes', multiple components are treated as if independent digests had been performed on separate sample aliquots and the resulting peptide mixtures combined.
+* Semispecific: When value is 'yes', any given peptide need only conform to the cleavage specificity at one end.
+
+
+**Updates**
+
+* 27/04/2021: added enzymatic digestion and improved the Excel output.
+
+
+
+    ]]>
+    </help>
+    <citations>
+    </citations>
+</tool>

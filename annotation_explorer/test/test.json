@@ -1,0 +1,10 @@
+{
+  "proteins": {
+    "proteinFile": "./text.txt",
+    "source": "file"
+  },
+  "categories": {
+    "choice": "default"
+  },
+  "from": "ACC+ID"
+}

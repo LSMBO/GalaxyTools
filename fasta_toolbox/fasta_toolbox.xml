@@ -1,0 +1,144 @@
+<tool id="fasta_toolbox" name="Fasta toolbox" version="1.0.2">
+    <description>Generation of Fasta files</description>
+    <requirements>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/fasta_toolbox.pl '$inputs' '$output'
+        #if $toolbox.action == 'merge':
+          #for $file in $input_fastas:
+            #if $file:
+                 '$file' '${file.display_name}'
+            #end if
+          #end for
+        #end if
+    ]]></command>
+    <configfiles>
+      <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+
+      <!-- Fasta file name -->
+      <param name="name" size="12" type="text" value="" optional="false" label="Fasta file base name" help="The name must be short and only contain letters">
+        <validator type="regex" message="1 to 12 letters only">^[a-zA-Z]{1,12}$</validator>
+      </param>
+
+      <!-- User initials -->
+      <param name="initials" size="10" type="text" value="" optional="true" label="User initials" help="If provided, the user initials will be added to the fasta file name">
+        <validator type="regex" message="2 to 3 letters only">^[a-zA-Z]{2,3}$</validator>
+      </param>
+
+      <conditional name="toolbox">
+        <param name="action" type="select" display="radio" label="Fasta content">
+          <option value="generate" selected="true">Generate from taxonomy ids</option>
+          <option value="merge">Merge fasta files</option>
+        </param>
+        <when value="generate">
+          <!-- Source -->
+          <param name="source" type="select" label="Source" help="From which database do you want to extract your sequences ?" >
+            <option value="SP" selected="true">Swiss-Prot (reviewed proteins only)</option>
+            <option value="TR">TrEMBL (non-reviewed proteins only)</option>
+            <option value="UN">UniprotKB (Swiss-Prot and TrEMBL)</option>
+          </param>
+          <!-- Taxonomy ids (add link to ncbi/uniprot taxonomy page here) -->
+          <param name="taxo" size="50" type="text" value="" optional="false" label="Taxonomy ids, separated by commas (ie. '9606,7215')" help="Taxonomies are available here: https://www.ncbi.nlm.nih.gov/taxonomy">
+            <validator type="regex" message="Numeric ids separated by comma">^([0-9]+,\s*)*[0-9]+$</validator>
+          </param>
+
+          <param name="genopts" type="select" display="checkboxes" multiple="true" label="Uniprot options">
+            <option value="proteome">Restrain to reference proteomes only (more information here: https://www.uniprot.org/help/reference_proteome)"</option>
+            <option value="isoforms">Include protein isoforms</option>
+          </param>
+        </when>
+        <when value="merge">
+          <!-- Merge with other fasta files -->
+          <param name="input_fastas" type="data" format="fasta,zip" multiple="true" label="Select fasta files to concatenate" help="Decoy entries will NOT be merged, use the decoy option to regenerate decoy entries"/>
+        </when>
+      </conditional>
+
+      <section name="options" title="Advanced options (click to include or exclude proteins)" expanded="false" >
+        <!-- Add contaminant proteins -->
+        <param name="contaminants" type="select" display="checkboxes" multiple="true" label="Include contaminant proteins" help="The fasta files for each choice are available at the bottom of the page">
+          <option value="k" selected="true">Keratin proteins</option>
+          <option value="t" selected="true">Trypsin protein</option>
+          <option value="o" selected="true">Other common contaminant proteins</option>
+        </param>
+        <param name="exclude" type="select" display="checkboxes" multiple="true" label="Exclude duplicate proteins based on..." help="Proteins with the same identifiers will always be removed">
+          <option value="sameSeq" selected="false">Same sequence as another protein</option>
+          <option value="subSeq" selected="false">Sequence contained in another protein (Warning, this option is extremely slow)</option>
+        </param>
+      </section>
+
+      <!-- Generate decoy entries -->
+      <param name="decoy" checked="yes" label="Generate decoy entries" type="boolean" display="checkboxes" help="Sequences will be reversed, and accession numbers will be tagged with ###REV###"></param>
+
+    </inputs>
+
+    <outputs>
+      <data format="zip" name="output" label="FastaToolbox" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="name" value="test" />
+            <param name="initials" value="ABU" />
+            <conditional name="toolbox">
+                <param name="action" value="generate" />
+                <param name="source" value="SP" />
+                <param name="taxo" value="9606" />
+                <param name="genopts" value="" />
+            </conditional>
+            <section name="options">
+                <param name="contaminants" value="" />
+                <param name="exclude" value="" />
+            </section>
+            <param name="decoy" value="true" />
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+**What it does**
+
+Generates a fasta file containing taxonomy ids.
+You can restrict the proteins returned to Swiss-Prot only, or have both UniprotKB Swiss-Prot and TReMBL. Also, you can ask for reference proteomes only for the given taxonomies, and/or include protein isoforms to the default canonical proteins.
+
+Several options are provided:
+
+* Contaminants: you can choose to add proteins commonly considered as contaminant. These proteins will be tagged as contaminants using the prefix CON (ie. protein sp|P13645 would be renamed CON_sp|P13645). You can check the contaminant proteins with the following fasta files:
+
+  * Keratin proteins: https://iphc-galaxy.u-strasbg.fr/static/contaminants/keratin_contaminants.fasta
+
+  * Trypsin protein: https://iphc-galaxy.u-strasbg.fr/static/contaminants/trypsin_contaminant.fasta
+
+  * Other common contaminant proteins: https://iphc-galaxy.u-strasbg.fr/static/contaminants/other_common_contaminants.fasta
+
+* Remove duplicate proteins: make sure that no sequence appears twice in the list of target proteins. For instance, if the taxonomy you selected contains a contaminant protein, it will not appear with and without the CON tag (only the tagged version will remain).
+
+* Remove subsequences: Remove all proteins which sequence is fully contained in another protein sequence (Warning: this option makes the script much slower).
+
+* Generate decoy entries: after every taxonomies are added, contaminants too, and duplicate and/or sub sequences have been removed if requested, generates the decoy entries based on the final list of proteins. The decoy entries are generated by reversing their sequence, and adding the tag ###REV### prior to the accession number. For instance the protein sp|P12345 would become ###REV###_sp|P12345
+
+
+** Why is it limited to Uniprot data ?
+
+Uniprot provides a very fast and complete API to retrieve data and it has been decided to develop this tool around this API only.
+
+Generating Fasta file from NCBI within this tool would be possible, using the Entrez API, but it would not be relevant due to the nature of the NCBI protein database. As said in https://www.ncbi.nlm.nih.gov/protein, "The Protein database is a collection of sequences from several sources, including translations from annotated coding regions in GenBank, RefSeq and TPA, as well as records from SwissProt, PIR, PRF, and PDB". Therefore, you may have the same proteins with different sequences and accessions. For instance, the homo sapiens taxonomy matches to 175,000 entries in UniprotKB/TrEMBL and 20,000 entries UniprotKB/Swiss-Prot, but in all NCBI it matches over 1,4 million entries (and around 40,000 reviewed entries).
+
+If you want a Fasta from one of NCBI RefSeq resource, you should use the 'RefSeq assembly to Fasta' tool and eventually remove sub-sequences. This tool will download the Fasta file for a specific taxonomy from the NCBI FTP and it will be much faster than using the Entrez API or downloading from the Web site.
+
+Eventually, the 'Fasta toolbox' can be used for all Fasta files, even from a different resource or a hand-made one. You can upload this file on Galaxy, and use it with the 'Merge' function so you can add contaminants, remove duplicate entries or generate decoy entries.
+
+
+
+**Updates**
+
+* 12/04/2021: improved the speed of the search for sub sequences
+
+    ]]>
+    </help>
+    <citations>
+      <citation type="doi">10.1093/nar/gkaa1100</citation>
+    </citations>
+</tool>

@@ -1,0 +1,14 @@
+{
+  "peptides": {
+    "excelFile": "./test.xlsx",
+    "sheetNumber": 1,
+    "cellAddress": "A2",
+    "source": "xlsx"
+  },
+  "fasta": "./test.fasta",
+  "enzyme": "1",
+  "jokers": {
+    "B": false,
+    "J": false
+  }
+}

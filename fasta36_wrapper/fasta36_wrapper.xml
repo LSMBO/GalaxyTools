@@ -1,0 +1,107 @@
+<tool id="fasta36_wrapper" name="Fasta36" version="1.0.1">
+    <description>Protein sequence comparaison</description>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/fasta36_wrapper.pl '$inputs'
+        #if $output.format == 'xlsx':
+            '$output_xlsx'
+        #else:
+            '$output_tsv'
+        #end if
+        #if $keepLogFiles == "true":
+            '$output_log'
+        #end if
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <!-- proteins -->
+        <conditional name="proteins">
+            <param name="source" type="select" display="radio" label="Select source">
+                <option value="list" selected="true">Protein identifiers list</option>
+                <option value="file">Protein identifiers file</option>
+                <option value="xlsx">Excel input file</option>
+                <option value="fasta">Fasta file</option>
+            </param>
+            <when value="list">
+                <param name="proteinList" label="Protein identifiers list" type="text" area="true">
+                    <validator type="regex" message="The pipe character '|' is not allowed here">^[^\|]*$</validator>
+                </param>
+            </when>
+            <when value="file">
+                <param format="txt" name="proteinFile" type="data" label="Protein identifiers file" multiple="false"/>
+            </when>
+            <when value="xlsx">
+                <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" />
+                <param name="sheetNumber" label="Number of the sheet containing the protein identifiers" type="integer" value="1" help="" />
+                <param name="cellAddress" label="Address of the first protein identifier" type="text" value="A2">
+                  <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
+                </param>
+            </when>
+            <when value="fasta">
+                <param format="fasta" name="fastaFile" type="data" label="Fasta file" multiple="false"/>
+            </when>
+        </conditional>
+        
+        <param format="fasta" name="fastaLibrary" type="data" label="Fasta library" multiple="false" help="Each protein will be compared to the proteins in the library" />
+        <param name="nb" type="integer"  size="4" value="1"  label="Number of Blast hits"/>
+
+        <conditional name="output">
+            <param name="format" type="select" label="Output format" >
+                <option value="xlsx" selected="true">Excel file</option>
+                <option value="tsv">Tabular text file</option>
+            </param>
+            <when value="xlsx" />
+            <when value="tsv" />
+        </conditional>
+        <param type="boolean" name="keepLogFiles" checked="false" label="Keep log files" help="If you select this value, you will also have an output zip file containing one log file per comparison, allowing you to see the full output of the comparison and not just the top results" />
+
+    </inputs>
+    <outputs>
+        <data format="xlsx" name="output_xlsx" label="Fasta36-${time.strftime('%Y%m%d-%H%M')}">
+            <filter>output['format'] == 'xlsx'</filter>
+        </data>
+        <data format="tsv" name="output_tsv" label="Fasta36-${time.strftime('%Y%m%d-%H%M')}">
+            <filter>output['format'] == 'tsv'</filter>
+        </data>
+        <data format="zip" name="output_log" label="Fasta36-${time.strftime('%Y%m%d-%H%M')}">
+            <filter>keepLogFiles</filter>
+        </data>
+    </outputs>
+    <tests>
+        <test>
+            <conditional name="proteins">
+                <param name="source" value="list" />
+                <param name="proteinList" value="P12345" />
+            </conditional>
+            <param name="fastaLibrary" value="test/keratin.fasta" />
+            <param name="nb" value="1" />
+            <conditional name="output">
+                <param name="format" value="xlsx" />
+            </conditional>
+            <param name="keepLogFiles" value="false" />
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+**What it does**
+
+Program: Fasta36 Effective protein sequence comparaison 
+
+Goal: To identify statistically significant sequence similarity that can be used to infer homology
+
+Compares the sequences from the query file with those provided in the library. If you provide a taxonomy ID, the corresponding fasta file will be downloaded from Uniprot-SwissProt.
+
+Fasta36 sources are available here: https://github.com/wrpearson/fasta36
+
+    ]]></help>
+    <citations>
+      <citation type="doi">10.1093/nar/gkaa1100</citation>
+      <citation type="doi">10.1073/pnas.85.8.2444</citation>
+      <citation type="doi">10.1016/s0076-6879(96)66017-0</citation>
+    </citations>
+</tool>
+

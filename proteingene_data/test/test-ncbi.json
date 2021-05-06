@@ -1,0 +1,10 @@
+{
+  "proteins": {
+    "proteinFile": "./test-ncbi.txt",
+    "source": "file"
+  },
+  "identifierTypes": {
+    "strict": true,
+    "from": "NCBI"
+  }
+}

@@ -1,0 +1,54 @@
+<tool id="refseqAssembly" name="RefSeq assembly to Fasta" version="1.0.1">
+    <description>Generation of a Fasta file based on RefSeq assemblies</description>
+    <macros>
+        <import>refseq_macro.xml</import>
+    </macros>
+    <requirements>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/refseq_assemblies.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+      <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+
+      <!-- Select the taxonomy -->
+      <expand macro="refseq_assemblies" />
+
+      <!-- Exclude duplicate sequences -->
+      <param name="exclude" type="select" display="checkboxes" multiple="true" label="Exclude duplicate proteins based on..." help="Proteins with the same identifiers will always be removed">
+        <option value="sameSeq" selected="true">Same sequence as another protein</option>
+        <option value="subSeq" selected="false">Sequence contained in another protein (Warning, this option is extremely slow: more than 30 minutes for 40 000 proteins, about 2 hours for 80 000 proteins)</option>
+      </param>
+
+    </inputs>
+    <outputs>
+      <data format="fasta" name="output" label="RefSeqAssembly" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="taxonomy" value="1" />
+            <param name="exclude" value="" />
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+**What it does**
+
+Generates a fasta file based on RefSeq assembly data.
+
+You select a taxonomy in the list, and we download the corresponding fasta file from the NCBI FTP server. Given the nature to the data, it is suggested that you remove the duplicate sequences from the fasta file.
+
+Once you have the fasta file generated, you can use it in the Fasta Toolbox to add contaminant proteins, generate decoy entries, etc.
+
+    ]]>
+    </help>
+    <citations>
+      <citation type="doi"> 10.1093/nar/gkx1095</citation>
+    </citations>
+</tool>
+

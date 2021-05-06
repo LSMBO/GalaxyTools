@@ -1,0 +1,102 @@
+<tool id="proteingene_data" name="Protein/gene data" version="1.1.1">
+    <description>Extraction of protein information</description>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/proteingene_data.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <conditional name="proteins">
+            <param name="source" type="select" display="radio" label="Select source">
+                <option value="xlsx" selected="true">Excel input file</option>
+                <option value="list">Protein identifiers list</option>
+                <option value="file">Protein identifiers file</option>
+            </param>
+            <when value="xlsx">
+                <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" />
+                <param name="sheetNumber" label="Number of the sheet containing the protein identifiers" type="integer" value="1" help="" />
+                <param name="cellAddress" label="Address of the first protein identifier" type="text" value="A2" help="Only the first identifier in the cells will be searched">
+                    <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
+                </param>
+            </when>
+            <when value="list">
+                <param name="proteinList" label="Protein identifiers list" type="text" area="true" help="">
+                    <validator type="regex" message="The pipe character '|' is not allowed here">^[^\|]*$</validator>
+                </param>
+            </when>
+            <when value="file">
+                <param format="txt" name="proteinFile" type="data" label="Protein identifiers file" multiple="false" />
+            </when>
+        </conditional>
+        <conditional name="identifierTypes">
+          <param name="from" type="select" display="radio" label="Select type of identifier">
+                <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                <option value="GENENAME">Gene names</option>
+                <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                <option value="NCBI">NCBI or RefSeq accession</option>
+            </param>
+            <when value="ACC_ID">
+                <param type="boolean" checked="false" name="addOrthoDb" label="Add OrthoDB links into the output" help="" />
+                <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />
+            </when>
+            <when value="GENENAME">
+                <param name="organism" label="Organism taxonomy identifier" type="integer" area="true" value="" />
+                <param type="boolean" checked="false" name="addOrthoDb" label="Add OrthoDB links into the output" help="" />
+                <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />
+            </when>
+            <when value="P_ENTREZGENEID">
+                <param type="boolean" checked="false" name="addOrthoDb" label="Add OrthoDB links into the output" help="" />
+                <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />
+            </when>
+            <when value="NCBI" />
+<!--            <when value="NCBI">
+                <param type="boolean" checked="true" name="strict" label="Search exact match for the identifiers" help="" />
+            </when>
+-->
+        </conditional>
+    </inputs>
+    <outputs>
+        <data format="xlsx" name="output" label="Proteins_${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <conditional name="proteins">
+                <param name="source" value="list" />
+                <param name="proteinList" value="P12345" />
+            </conditional>
+            <conditional name="identifierTypes">
+                <param name="from" value="ACC_ID" />
+                <param name="addOrthoDb" value="false" />
+                <param name="addInterPro" value="false" />
+            </conditional>
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+        **What it does**
+
+        Takes a list of Uniprot accession names or ids and extracts protein information from Uniprot into a user-friendly Excel file.
+
+        The information retrieved corresponds to the following columns in a Uniprot table: Entry, Entry name, Status, Description, Organism ID, Gene name, EC number, GeneId, Creation date, Last update, Last sequence update.
+
+        For NCBI or RefSeq accession identifiers, the information retrieved will be: Locus, Identifier, Description, Reviewed, Organism, Gene Name, GeneId, Source, Creation date, Last update.
+
+
+**Updates**
+
+* 04/05/2021: added support for NCBI accessions, using Entrez eutils API, and added new columns to the Excel output (creation date, last update, last sequence update).
+
+
+
+    ]]></help>
+    <citations>
+      <citation type="doi">10.1093/nar/gkaa1100</citation>
+      <citation type="doi">10.1093/nar/gky1053</citation>
+      <citation type="doi">10.1093/nar/gkaa977</citation>
+      <citation type="doi"> 10.1093/nar/gkx1095</citation>
+    </citations>
+</tool>

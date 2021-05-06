@@ -1,0 +1,64 @@
+<tool id="proteinlist_comparator" name="Protein list comparator" version="1.0.0">
+    <description>Transforms an Excel table to compare protein's information per sample</description>
+    <requirements>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/proteinlist_comparator.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+      <!-- upload excel file -->
+      <param format="xlsx" name="input" type="data" label="Excel file" multiple="false"/>
+      
+      <!-- Letter for column 'Sample' -->
+      <param name="sample" size="10" type="text" value="" optional="false" label="Letter for column 'Sample'" help="">
+        <validator type="regex" message="Letter only">^[a-zA-Z]{1,3}$</validator>
+      </param>
+      
+      <!-- Letter for column 'Protein' -->
+      <param name="protein" size="10" type="text" value="" optional="false" label="Letter for column 'Protein'" help="">
+        <validator type="regex" message="Letter only">^[a-zA-Z]{1,3}$</validator>
+      </param>
+      
+      <!-- Letter for columns to compare -->
+      <param name="conditions" size="10" type="text" value="" optional="false" label="Letters for columns to compare" help="Use letters separated by a comma (ie. C,D,E)">
+        <validator type="regex" message="Letters only separated by a comma">^([a-zA-Z]{1,3}[,; ]+)*[a-zA-Z]{1,3}$</validator>
+      </param>
+
+    </inputs>
+    <outputs>
+      <data format="xlsx" name="output" label="Compared-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="input" value="test/testFile.xlsx" />
+            <param name="sample" value="a" />
+            <param name="protein" value="b" />
+            <param name="conditions" value="c,d,e,f,g" />
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+          **What it does**
+
+          Reads an Excel file and transforms its data to make the comparison of information easier to compare.
+
+          The main use-case is to list all proteins in a table, and display the corresponding values for each selected condition in different samples.
+          
+          Important note: there are a few requirements for the Excel file:
+
+          * Data must be in the first sheet
+          * Data must not contain any formula
+          * Data must start at column A and line 1
+          * First line must be the header line, everything else is data
+
+    ]]></help>
+    <citations>
+    </citations>
+</tool>
+

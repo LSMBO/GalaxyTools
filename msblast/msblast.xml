@@ -1,0 +1,72 @@
+<tool id="msblast" name="MS Blast" version="1.0.1">
+    <description>Run NCBI blastp and generate an Excel output</description>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/msblast.pl '$inputs' '${fastaFile.display_name}' '$output'
+    ]]></command>
+     <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <!-- upload fasta file -->
+        <param format="fasta" name="fastaFile" type="data" label="Fasta database" multiple="false"/>
+        <!-- peptides -->
+        <conditional name="peptides">
+            <param name="source" type="select" display="radio" label="Select source">
+                <option value="list" selected="true">Peptide list</option>
+                <option value="file">Peptide file</option>
+                <option value="xlsx" selected="true">Excel input file</option>
+            </param>
+            <when value="list">
+                <param name="peptideList" label="Peptide list" type="text" area="true" />
+            </when>
+            <when value="file">
+                <param format="txt" name="peptideFile" type="data" label="Peptide file" multiple="false"/>
+            </when>
+            <when value="xlsx">
+                <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" />
+                <param name="sheetNumber" label="Number of the sheet containing the protein identifiers" type="integer" value="1" help="" />
+                <param name="cellAddress" label="Address of the first protein identifier" type="text" value="A2">
+                  <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
+                </param>
+            </when>
+        </conditional>
+    </inputs>
+    <outputs>
+        <data format="xlsx" name="output" label="MSBlast-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="fastaFile" value="test/test.fasta" />
+            <conditional name="peptides">
+                <param name="source" value="list" />
+                <param name="peptideList" value="TNAENEFVTIKK" />
+            </conditional>
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+        **What it does**
+
+        Runs NCBI blastp version 2.11.0+ and converts its output into a user-friendly Excel file.
+        The parameters for blastp are the following:
+
+        * -evalue=100 
+        * -num_descriptions 50000 
+        * -num_alignments 50000 
+        * -comp_based_stats F 
+        * -ungapped 
+        * -matrix PAM30 
+        * -max_hsps 100 
+        * -sorthsps 1 
+        
+        Documentation for NCBI blast tool suite is available here: https://www.ncbi.nlm.nih.gov/books/NBK279690/
+
+    ]]></help>
+    <citations>
+      <citation type="doi">10.1186/1471-2105-10-421</citation>
+    </citations>
+</tool>
+

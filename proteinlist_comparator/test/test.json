@@ -1,0 +1,6 @@
+{
+  "input": "./test.xlsx",
+  "sample": "a",
+  "protein": "b",
+  "conditions": "c,d,e,f,g"
+}

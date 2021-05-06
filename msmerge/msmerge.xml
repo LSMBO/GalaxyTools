@@ -1,0 +1,39 @@
+<tool id="ms_merge" name="MS Merge" version="1.0.1">
+    <description>Merges mgf files together</description>
+    <requirements>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/msmerge.pl '$output'
+        #for $file in $input:
+          #if $file:
+               '$file' '${file.display_name}'
+          #end if
+        #end for
+    ]]></command>
+    <inputs>
+      <!-- upload excel file -->
+      <param format="mgf" name="input" type="data" label="MGF files" multiple="true"/>
+
+    </inputs>
+    <outputs>
+      <data format="mgf" name="output" label="MSMerge-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="input" value="test/test.mgf" />
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+          **What it does**
+
+          Merges several MGF files into a single MGF file.
+          You may usually find some comments at the beginning of MGF files, these lines are not kept.
+          Spectra are directly copied to the new file, with only one modification : the name of the file is added to the TITLE field.
+    ]]></help>
+    <citations>
+    </citations>
+</tool>
+

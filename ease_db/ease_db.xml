@@ -1,0 +1,67 @@
+<tool id="ease_db" name="EaseDB" version="1.0.0">
+    <description>Generates a taxonomy-centered database for DAVID's EASE software</description>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/easei_db.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <conditional name="taxonomy">
+            <param name="taxo" type="select" label="Select library" help="Select the taxonomy for your database" >
+                <option value="9606">Homo Sapiens (9606)</option>
+                <option value="10116">Rattus norvegicus (10116)</option>
+                <option value="10090">Mus musculus (10090)</option>
+                <option value="Other">Other</option>
+            </param>
+            <when value="9606" />
+            <when value="10116" />
+            <when value="10090" />
+            <when value="Other">
+                <param type="text" name="taxo_id" label="Taxonomy ID" >
+                    <validator type="regex" message="Numeric id only">^[0-9]+$</validator>
+                </param>
+            </when>
+        </conditional>
+        
+        <param name="source" type="select" label="Source" help="From which database do you want to extract your sequences ?" >
+            <option value="sp" selected="true">Swiss-Prot</option>
+            <option value="un">Uniprot KB (Swiss-Prot and Trembl)</option>
+        </param>
+    </inputs>
+    <outputs>
+        <data format="zip" name="output" label="Easedb-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <conditional name="taxonomy">
+                <param name="taxo" value="9606" />
+            </conditional>
+            <param name="source" value="sp" />
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+**What it does**
+
+Generates a database for DAVID's EASE software. This database will be centered on a single taxonomy.
+
+How to install the database: 
+
+* Download the zip output
+* Extract it into the EASE\\Taxonomy directory
+* Get into the EASE\\Taxonomy\\''Taxonomy name folder'' (ie: Homo sapiens)
+* Execute the file **setData.bat**.
+
+
+    ]]></help>
+    <citations>
+      <citation type="doi">10.1093/nar/28.1.27</citation>
+      <citation type="doi">10.1002/pro.3715</citation>
+      <citation type="doi">10.1093/nar/gkaa970</citation>
+      <citation type="doi">10.1093/nar/gkaa1100</citation>
+    </citations>
+</tool>
+

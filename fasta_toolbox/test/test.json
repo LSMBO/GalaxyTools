@@ -1,0 +1,15 @@
+{
+  "name": "generate3",
+  "initials": "ABU",
+  "toolbox": {
+    "source": "SP",
+    "taxo": "9606,7215",
+    "genopts": "None",
+    "action": "generate"
+  },
+  "options": {
+    "contaminants": "k,t,o",
+    "exclude": "None"
+  },
+  "decoy": true
+}

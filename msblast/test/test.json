@@ -1,0 +1,9 @@
+{
+  "fastaFile": "./test.fasta",
+  "peptides": {
+    "excelFile": "./test.xlsx",
+    "sheetNumber": 1,
+    "cellAddress": "A1",
+    "source": "xlsx"
+  }
+}

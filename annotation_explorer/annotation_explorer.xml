@@ -1,0 +1,94 @@
+<tool id="annotation_explorer" name="Annotation Explorer" version="1.0.1">
+    <description>Retrieve GO terms and ancestors list</description>
+1 1 <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/annotation_explorer.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs"  data_style="paths" />
+    </configfiles>
+    <inputs>
+        <!-- proteins -->
+        <conditional name="proteins">
+            <param name="source" type="select" display="radio" label="Select source">
+                <option value="xlsx">Excel input file</option>
+                <option value="list" selected="true">Protein identifiers list</option>
+                <option value="file">Protein identifiers file</option>
+            </param>
+            <when value="xlsx">
+                <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" />
+                <param name="sheetNumber" label="Number of the sheet containing the protein identifiers" type="integer" value="1" help="" />
+                <param name="cellAddress" label="Address of the first protein identifier" type="text" value="A2">
+                  <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
+                </param>
+            </when>
+            <when value="list">
+                <param name="proteinList" label="Protein identifiers list" type="text" area="true">
+                    <validator type="regex" message="The pipe character '|' is not allowed here">^[^\|]*$</validator>
+                </param>
+            </when>
+            <when value="file">
+                <param format="txt" name="proteinFile" type="data" label="Protein identifiers file" multiple="false" />
+            </when>
+        </conditional>
+        
+        <conditional name="categories">
+            <param name="choice" type="select" display="radio" label="GO categories" help="Default GO categories is available, see the link below">
+                <option value="no">No GO categories</option>
+                <option value="default" selected="true">Use default GO categories</option>
+                <option value="file">Use specific GO categories</option>
+            </param>
+            <when value="no" />
+            <when value="default" />
+            <when value="file">
+                <param format="xlsx" name="excelFile" type="data" label="Specific GO categories" multiple="false" />
+            </when>
+        </conditional>
+        
+        <param name="from" type="hidden" value="ACC+ID" />
+        <!-- <param name="from" type="select" label="Identifier type" help="This list is a subset of the Uniprot Retrieve/ID mapping 'From' list">
+            <option value="ACC+ID" selected="true">UniProtKB AC/ID</option>
+            <option value="EMBL_ID">EMBL/GenBank/DDBJ</option>
+            <option value="P_REFSEQ_AC">RefSeq Protein</option>
+        </param> -->
+    </inputs>
+    <outputs>
+        <data format="xlsx" name="output" label="AnnotationExplorer-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <conditional name="proteins">
+                <param name="source" value="list" />
+                <param name="proteinList" value="P12345" />
+            </conditional>
+            <conditional name="categories">
+                <param name="choice" value="no" />
+            </conditional>
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+    
+        **What it does**
+
+        Takes a list of Uniprot accession names or ids and extracts protein information and GO terms from Uniprot.
+        GO ancestors are queried from the Gene Ontology database http://geneontology.org/
+        
+        For each proteins, GO terms are separated into three ontologies: Cellular component, Molecular function and Biological process.
+        Links for the AmiGO Visualize tool are generated on the fly, you can find more information about its format here: http://wiki.geneontology.org/index.php/AmiGO_2_Manual:_Visualize
+        
+        You can also submit GO terms instead of protein identifiers. In this case you will only get the GO information and the corresponding categories.
+        
+        In-house GO categories are provided, you can download the file here: https://iphc-galaxy.u-strasbg.fr/static/annotation_explorer_categories.xlsx
+        You can provide your own categories using the same XLSX format.
+        
+        Finally, the output is a user-friendly Excel file with all the results returned by the differents sources.
+        
+    ]]></help>
+    <citations>
+        <citation type="doi">10.1093/nar/gkaa1100</citation>
+        <citation type="doi">10.1093/bioinformatics/btp536</citation>
+        <citation type="doi">10.1093/bioinformatics/btn615</citation>
+    </citations>
+</tool>

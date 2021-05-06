@@ -1,0 +1,95 @@
+<tool id="kegg" name="Kegg" version="1.0.1">
+    <description>Get Kegg maps from Uniprot entries or Kegg identifiers</description>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/kegg.pl '$inputs' '$output_xlsx' '$output'
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <param format="xlsx" name="inputFile" type="data" label="Excel input file" multiple="false"/>
+        <param name="type" type="select" label="Input data type">
+            <option selected="true" value="uniprot">Uniprot accession numbers</option>
+            <option value="kegg">Kegg identifiers</option>
+        </param>
+        <conditional name="Statistics">
+            <param name="value" type="select" label="Statistical validation" >
+                <option value="none">No statistics</option>
+                <option value="anova_only">Anova p-value only</option>
+                <option value="anova_fc" selected="true">Anova p-value + Fold Change</option>
+                <option value="anova_fc_tukey">Anova p-value + Tukey + Fold Change</option>
+            </param>
+            <when value="none" />
+            <when value="anova_only">
+                <param name="anova" type="float" value="0.05"  label="Anova p-value threshold" />
+            </when>
+            <when value="anova_fc">
+                <param name="anova" type="float" value="0.05"  label="Anova p-value threshold" />
+                <param name="fc" type="float" value="1.5"  label="Fold Change threshold" />
+            </when>
+            <when value="anova_fc_tukey">
+                <param name="anova" type="float" value="0.05"  label="Anova p-value threshold" />
+                <param name="tukey" type="float" value="0.05"  label="Tukey threshold" />
+                <param name="fc" type="float" value="1.5"  label="Fold Change threshold" />
+            </when>
+        </conditional>
+    </inputs>
+    <outputs>
+        <data format="zip" name="output" label="Kegg-${inputFile.display_name}-${time.strftime('%Y%m%d-%H%M')}" />
+        <data format="xlsx" name="output_xlsx" label="Kegg-${inputFile.display_name}-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="inputFile" value="test/All3449.xlsx" />
+            <param name="type" value="uniprot" />
+            <conditional name="statistics">
+                <param name="value" value="anova_only" />
+                <param name="anova" value="0.05" />
+            </conditional>
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+        **What it does**
+
+    Automatic extraction of KEGG Pathway Maps assigned to given proteins (from Swissprot accession numbers) or directly from Kegg identifiers.
+    Returns a user-friendly Excel file with the Kegg maps and pathways for each protein/id.
+    Also returns a zip files with all the maps in SVG format.
+
+    The color code used in the Excel file along with the SVG files is the following :
+
+    * Yellow: Does not satisfy p-value criteria (and Tukey is provided)
+    * Blue: Satisfies p-value criteria (and Tukey is provided)
+    * Red: Satisfies all statistics, the protein is upregulated
+    * Green: Satisfies all statistics, the protein is downregulated
+
+    KEGG database resource: Kyoto Encyclopedia of genes and Genomes
+
+
+    **Format of the input file**
+
+    * The input file has to be an Excel file.
+    * Data is expected to be in the first sheet and start at the beginning of the sheet.
+    * First line is considered as a header line.
+    * Column A has to contain protein accession numbers (such as 'P48444')
+    * If you have p-values
+        * Column B has to contain p-values
+    * If you have p-values and Fold Change values
+        * Column B has to contain p-values
+        * Column C has contain FC values
+    * If you have p-values, Tukey and FC values
+        * Column B has to contain p-values
+        * Column C has contain Tukey values
+        * Column D has contain FC values
+
+
+    ]]></help>
+    <citations>
+      <citation type="doi">10.1093/nar/28.1.27</citation>
+      <citation type="doi">10.1002/pro.3715</citation>
+      <citation type="doi">10.1093/nar/gkaa970</citation>
+    </citations>
+</tool>
