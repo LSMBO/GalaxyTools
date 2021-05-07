@@ -23,6 +23,8 @@ use Excel::Template::XLSX; # wraps Excel::Writer::XLSX and allows to create a ne
 # GENERIC METHODS #
 ###################
 
+my $GLOBAL = parameters(dirname(__FILE__)."/settings.json");
+
 # Dates
 sub getDate {
     my ($format) = @_;
@@ -34,7 +36,11 @@ sub getDate {
 
 # usefull when contact for Galaxy is required
 sub getContactMailAddress {
-    return "iphc-galaxy\@unistra.fr";
+    return $GLOBAL->{"admin_email"};
+}
+
+sub getSetting {
+    return $GLOBAL->{$_[0]};
 }
 
 ##############
@@ -46,7 +52,7 @@ sub getContactMailAddress {
 sub parameters {
     eval {
         return \%{decode_json(read_file($_[0], { binmode => ':raw' }))};
-    } or stderr("Can't read parameter file", 1);
+    } or stderr("Can't read parameter file: $!", 1);
 }
 
 # Json parameters file sometimes uses true/false and sometimes 0/1
