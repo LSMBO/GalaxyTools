@@ -143,7 +143,6 @@ sub getLinesPerIds {
     my %fullDataPerLine;
     my %linesPerId;
     my $i = 0;
-    #open(IN, "$inputFile") or stderr("Can't read file '$inputFile'", 1);
     open(my $fh, "<", $inputFile) or stderr("Can't read file '$inputFile': $!", 1);
     while(<$fh>) {
         chomp;
