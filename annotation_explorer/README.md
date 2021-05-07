@@ -14,3 +14,6 @@ You can provide your own categories using the same XLSX format.
 Finally, the output is a user-friendly Excel file with all the results returned by the differents sources.
 
 
+**Important note**
+
+If you want this tool in your Galaxy instance, you should create a symbolic link for the GO category file within the /static directory. This is not necessary for the tool to work, but it makes the category file accessible by the user.

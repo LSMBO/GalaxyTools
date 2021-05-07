@@ -7,11 +7,11 @@ Several options are provided:
 
 * Contaminants: you can choose to add proteins commonly considered as contaminant. These proteins will be tagged as contaminants using the prefix CON (ie. protein sp|P13645 would be renamed CON_sp|P13645). You can check the contaminant proteins with the following fasta files:
 
-  * Keratin proteins: https://iphc-galaxy.u-strasbg.fr/static/contaminants/keratin_contaminants.fasta
+  * Keratin proteins: https://<your.galaxy.instance>/static/contaminants/keratin_contaminants.fasta
 
-  * Trypsin protein: https://iphc-galaxy.u-strasbg.fr/static/contaminants/trypsin_contaminant.fasta
+  * Trypsin protein: https://<your.galaxy.instance>/static/contaminants/trypsin_contaminant.fasta
 
-  * Other common contaminant proteins: https://iphc-galaxy.u-strasbg.fr/static/contaminants/other_common_contaminants.fasta
+  * Other common contaminant proteins: https://<your.galaxy.instance>/static/contaminants/other_common_contaminants.fasta
 
 * Remove duplicate proteins: make sure that no sequence appears twice in the list of target proteins. For instance, if the taxonomy you selected contains a contaminant protein, it will not appear with and without the CON tag (only the tagged version will remain).
 
@@ -31,3 +31,6 @@ If you want a Fasta from one of NCBI RefSeq resource, you should use the 'RefSeq
 Eventually, the 'Fasta toolbox' can be used for all Fasta files, even from a different resource or a hand-made one. You can upload this file on Galaxy, and use it with the 'Merge' function so you can add contaminants, remove duplicate entries or generate decoy entries.
 
 
+**Important note**
+
+If you want this tool in your Galaxy instance, you should create a directory 'contaminants' within the /static directory, and create symbolic links to the three contaminant files. This is not necessary for the tool to work, but it makes the fasta files accessible by the user.
