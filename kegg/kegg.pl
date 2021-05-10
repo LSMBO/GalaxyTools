@@ -343,7 +343,7 @@ sub getMaps {
     $dbh->disconnect();
     
     @maps = sort (uniq(@maps));
-    print scalar(@maps)." have been added to the database\n";
+    print scalar(@maps)." maps have been added to the database\n";
     return @maps;
 }
 

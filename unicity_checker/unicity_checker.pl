@@ -86,6 +86,8 @@ while(<$fh>) {
 }
 close $fh;
 $workbook->close();
+unlink($inputFile) if($PARAMS{"proteins"}{"source"} ne "file");
+unlink($inputCopy) if($PARAMS{"peptides"}{"source"} eq "xlsx");
 
 print "Correct ending of the script\n";
 

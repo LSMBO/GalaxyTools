@@ -1,6 +1,6 @@
 {
   "proteins": {
-    "proteinFile": "./text.txt",
+    "proteinFile": "./test.txt",
     "source": "file"
   },
   "categories": {

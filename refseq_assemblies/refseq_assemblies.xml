@@ -19,7 +19,7 @@
       <!-- Exclude duplicate sequences -->
       <param name="exclude" type="select" display="checkboxes" multiple="true" label="Exclude duplicate proteins based on..." help="Proteins with the same identifiers will always be removed">
         <option value="sameSeq" selected="true">Same sequence as another protein</option>
-        <option value="subSeq" selected="false">Sequence contained in another protein (Warning, this option is extremely slow: more than 30 minutes for 40 000 proteins, about 2 hours for 80 000 proteins)</option>
+        <option value="subSeq" selected="false">Sequence contained in another protein (Warning, this option is very time consuming, it takes an hour to parse 100 000 proteins)</option>
       </param>
 
     </inputs>

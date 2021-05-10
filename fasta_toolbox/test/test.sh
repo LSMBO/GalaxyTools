@@ -1,1 +1,1 @@
-../fasta_toolbox.pl test.json
+../fasta_toolbox.pl test.json output.zip

@@ -1,0 +1,11 @@
+{
+  "proteins": {
+    "proteinList": "PSB9_MOUSE__cn__PSB9_MUSMB__cn__HSDL2_MOUSE__cn__CALU_BOVIN__cn__SPA3F_MOUSE__cn__UBP47_MOUSE__cn__SYFA_MOUSE__cn__NHLC3_MOUSE__cn__SULF1_MOUSE__cn__NEK9_MOUSE__cn__LIMS1_MOUSE__cn__PSMG1_MOUSE__cn__BPNT1_MOUSE",
+    "source": "list"
+  },
+  "identifierTypes": {
+    "addOrthoDb": true, 
+    "addInterPro": true,
+    "from": "ACC_ID"
+  }
+}

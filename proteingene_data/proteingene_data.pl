@@ -116,6 +116,7 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
         }
     }
     close $fh;
+    unlink $tempFile;
 }
 
 print "Write Uniprot results into an Excel file\n";
@@ -218,6 +219,7 @@ $worksheet->freeze_panes(1);
 $workbook->close();
 print "Excel file is complete\n";
 unlink($inputFile) if($PARAMS{"proteins"}{"source"} ne "file");
+unlink($inputCopy) if($PARAMS{"proteins"}{"source"} eq "xlsx");
 
 print "Correct ending of the script\n";
 

@@ -1,0 +1,13 @@
+{
+  "proteins": {
+    "excelFile": "./test-uniprot.xlsx",
+    "sheetNumber": 1, 
+    "cellAddress": "A2", 
+    "source": "xlsx"
+  },
+  "identifierTypes": {
+    "from": "ACC_ID", 
+    "addOrthoDb": false, 
+    "addInterPro": false
+  }
+}

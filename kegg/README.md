@@ -1,6 +1,6 @@
 # Kegg
 
-Automatic extraction of KEGG Pathway Maps assigned to given proteins (from Swissprot accession numbers) or directly from Kegg identifiers.
+Automatic extraction of KEGG Pathway Maps assigned to given proteins (from Swissprot accession numbers) or directly from Kegg identifiers. Kegg files will be downloaded and stored in local directories, so you only have to download them once (but the first runs will take a while).
 Returns a user-friendly Excel file with the Kegg maps and pathways for each protein/id.
 Also returns a zip files with all the maps in SVG format.
 

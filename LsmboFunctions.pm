@@ -636,7 +636,7 @@ sub archive {
         } elsif(-f $file) {
             $zip->addFile($file, basename($file));
         } else {
-            stderr("Item '$file' is not a file or a directory and will not be added to archive '$zipFile'");
+            stdwarn("Item '$file' is not a file or a directory and will not be added to archive '$zipFile'");
         }
     }
     $zip->writeToFileNamed($zipFile);
