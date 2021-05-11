@@ -19,44 +19,13 @@ Note that each tool depends on the LsmboFunctions.pm module.
 
 **Technical questions**
 
-The tools have been developped and tested with Perl v5.26.
+The tools have been developped and tested on a CentOS 8 with Perl v5.26.
 Most of the dependencies are listed in the file LsmboFunctions.pm:
-* General:
-    * Archive::Zip
-    * Data::Dumper
-    * File::Basename
-    * File::Copy
-    * File::Slurp qw(read_file write_file)
-    * JSON::XS qw(encode_json decode_json)
-    * List::MoreUtils qw(uniq)
-    * List::Util 'shuffle'
-    * LWP::Simple
-    * LWP::UserAgent
-    * Number::Bytes::Human qw(format_bytes)
-    * POSIX qw(strftime)
-    * Spreadsheet::ParseExcel::Utility 'sheetRef'
-    * Spreadsheet::ParseXLSX
-    * Excel::Template::XLSX
-* Specific to Annotation Explorer
-    * IO::Uncompress::Gunzip qw(gunzip $GunzipError)
-    * Spreadsheet::Reader::ExcelXML
-    * URI::Escape
-* Specific to EaseDB:
-    * File::Path qw(make_path remove_tree)
-* Specific to Fasta36 wrapper:
-    * Parallel::Loops
-    * Scalar::Util qw(looks_like_number)
-* Specific to Fasta Toolbox:
-    * Archive::Zip qw(:ERROR_CODES :CONSTANTS)
-    * Archive::Zip::MemberRead
-* Specific to Kegg extraction:
-    * DBI
-    * Image::Size
-    * MIME::Base64 qw(encode_base64)
-    * Scalar::Util qw(looks_like_number)
-    * SVG
-    * XML::Simple
-* Specific to RefSeq assembly to Fasta:
-    * Mail::Sendmail
-* Specific to Unicity checker:
-    * List::MoreUtils qw(uniq)
+* General dependencies: Archive::Zip, Data::Dumper, File::Basename, File::Copy, File::Slurp, JSON::XS, List::MoreUtils, List::Util, LWP::Simple, LWP::UserAgent, Number::Bytes::Human, POSIX, Spreadsheet::ParseExcel::Utility, Spreadsheet::ParseXLSX, Excel::Template::XLSX
+* Specific dependencies for Annotation Explorer: IO::Uncompress::Gunzip, Spreadsheet::Reader::ExcelXML, URI::Escape
+* Specific dependencies for EaseDB: File::Path
+* Specific dependencies for Fasta36 wrapper: Parallel::Loops, Scalar::Util
+* Specific dependencies for Fasta Toolbox: Archive::Zip::MemberRead
+* Specific dependencies for Kegg extraction: DBI, Image::Size, MIME::Base64, Scalar::Util, SVG, XML::Simple
+* Specific dependencies for RefSeq assembly to Fasta: Mail::Sendmail
+
