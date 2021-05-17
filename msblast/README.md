@@ -12,6 +12,5 @@ The parameters for blastp are the following:
 * -max_hsps 100
 * -sorthsps 1
 
-Documentation for NCBI blast tool suite is available here: https://www.ncbi.nlm.nih.gov/books/NBK279690/
-
-
+This tool requires the NCBI blast tool suite from https://www.ncbi.nlm.nih.gov/books/NBK279690/
+Make sure you download and install the latest release. Also, make sure the path to the the binaries is correct in the Perl file.

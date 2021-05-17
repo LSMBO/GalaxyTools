@@ -14,9 +14,11 @@ my ($paramFile, $fastaFileName, $outputFile) = @ARGV;
 
 # global variables
 my %PARAMS = %{parameters($paramFile)};
+my $version = "ncbi-blast-2.11.0+";
 my $maxUniquePeptide = 50;
 my $scoreTable = 100;
 my $dirname = dirname(__FILE__);
+my $ncbi_path = "$dirname/$version/bin";
 
 # step 1: create an adapted peptide file
 my @peptides;
@@ -59,7 +61,7 @@ print("Preparing fasta file for Blast\n");
 # my $fastaFile = $PARAMS{"fastaFile"};
 my $fastaFile = $fastaFileName;
 copy($PARAMS{"fastaFile"}, $fastaFile);
-run("$dirname/ncbi-blast-2.11.0+/bin/makeblastdb -dbtype prot -in $fastaFile");
+run("$ncbi_path/makeblastdb -dbtype prot -in $fastaFile");
 stderr("Error $?", 1) unless $? == 0;
 
 
@@ -67,7 +69,7 @@ stderr("Error $?", 1) unless $? == 0;
 # step 3: running blast
 print("Running blastp on fasta file\n");
 my $blpFile = "$fastaFile.blp";
-run("$dirname/ncbi-blast-2.11.0+/bin/blastp -db $fastaFile -query $inputFile -evalue=100 -num_descriptions 50000 -num_alignments 50000 -comp_based_stats F -ungapped -matrix PAM30 -max_hsps 100 -sorthsps 1 -out $blpFile");
+run("$ncbi_path/blastp -db $fastaFile -query $inputFile -evalue=100 -num_descriptions 50000 -num_alignments 50000 -comp_based_stats F -ungapped -matrix PAM30 -max_hsps 100 -sorthsps 1 -out $blpFile");
 stderr("Error $?", 1) unless $? == 0;
 
 
