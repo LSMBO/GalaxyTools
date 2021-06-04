@@ -18,7 +18,6 @@ if(exists($PARAMS{"cvcats"})) {
   foreach (split(" ", $PARAMS{"cvcats"})) {
     push(@CV_CATEGORIES, $_ / 100) unless($_ eq 0); # zero is implicit
   }
-#  push(@CV_CATEGORIES, 1) if(scalar(@CV_CATEGORIES) == 0 || $CV_CATEGORIES[scalar(@CV_CATEGORIES) - 1] ne 1);
   @CV_CATEGORIES = sort(uniq(@CV_CATEGORIES));
 } else {
   @CV_CATEGORIES = (0.05, 0.1, 0.15, 0.2, 0.4, 0.6, 1);
@@ -40,6 +39,7 @@ my $H_CVCALC = "CVs calculation";
 my $H_FOUNDINALL = "Found in all labels";
 
 # Excel formats
+my %F_WARNING = (bold => 1, color => 'red');
 my %F_BORDERS = (top => 1, bottom => 1, right => 1, left => 1);
 my %F_BORDER_R = (right => 1);
 my %F_BORDER_B = (bottom => 1);
@@ -54,7 +54,7 @@ my %F_DEC = (num_format => '0.00');
 
 my %SUMMARY;
 my $CATEGORIES = { "O" => "Overall", "Q" => "Quantified in all labels", "I" => "Identified in all labels", "V" => "Validated (CV < ".($CV_THRESHOLD*100)."%)", "QV" => "Quantified in all labels and validated (CV < ".($CV_THRESHOLD*100)."%)" };
-my $INFO = { "nbQ" => "Quantified peptides", "pctQ" => "Quantified peptides (%)", "nbI" => "Identified peptides", "pctI" => "Identified peptides (%)", "M" => "Median abundance", "R" => "Ratio Median / Median(_)" };
+my $INFO = { "nbQ" => "Quantified peptides", "pctQ" => "% Quantified peptides against Overall quantified peptides", "pctQI" => "% Quantified peptides against Overall identified peptides", "nbI" => "Identified peptides", "pctI" => "% Identified peptides against Overall Identified peptides", "M" => "Median abundance", "R" => "Ratio Median / Median(_)" };
 my $COLS = { "A" => "All labels", "1+" => "At least 1 label", "N" => "Not at all" };
 
 main($PARAMS{"inputFile"}, $outputFile);
@@ -79,8 +79,8 @@ sub main {
   # put the results in a Excel file
   my $workbook = createExcelFile($inputFile, $outputFile);
   addGlobalSheet($workbook);
-  addSummarySheet($workbook);
   addCategorySheet($workbook);
+  addSummarySheet($workbook);
   print "Closing output file\n";
   $workbook->close();
 }
@@ -105,7 +105,6 @@ sub readInputFile {
         push(@HEADERS, getValue($sheet, $row, $col));
       } else {
         $DATA{$row}{$HEADERS[$col]} = getValue($sheet, $row, $col);
-        #$NB_PEPTIDES++;
       }
     }
   }
@@ -148,6 +147,7 @@ sub addNewColumns {
   $COL_CVCALC = addNewColumn($H_CVCALC, "Quan Info");
   $COL_FOUNDINALL = addNewColumn($H_FOUNDINALL, "Confidence \(by Search Engine\)");
   
+  my $nbGhostPeptides = 0;
   # now parse the data and compute the values for each peptide and each new column
   foreach my $row (keys(%DATA)) {
     $DATA{$row}{$H_QUANTINALL} = 0; # make sure there is a value here
@@ -168,7 +168,14 @@ sub addNewColumns {
     # compute the CV
     my $cv = computeCV(@values);
     $DATA{$row}{$H_CVCALC} = $cv;
+    # this is a ghost peptide if it has not been identified anywhere
+    $nbGhostPeptides++ if(!exists($DATA{$row}{$H_FOUNDINALL}) || $DATA{$row}{$H_FOUNDINALL} eq 0);
   }
+  
+  # -FIXME NB_PEPTIDES should be the number of peptides identified at least once
+  $NB_PEPTIDES -= $nbGhostPeptides;
+  print "$nbGhostPeptides peptides are never identified anywhere and will be removed from the total count of peptide\n";
+  print "$NB_PEPTIDES peptides have been identified at least once\n";
 }
 
 sub getColumnIdBySearch {
@@ -236,7 +243,7 @@ sub addPlusOneToSummary {
   $SUMMARY{"QV"}{$info}{$label}++ if($nbQuant eq $NB_VALID_LABELS && $cv < $CV_THRESHOLD);
 }
 
-sub addMedianToSummary {
+sub storeAbundanceToSummary {
   my ($abundance, $label, $row) = @_;
   my $info = "MED_$label";
   my $nbQuant = (exists($DATA{$row}{$H_QUANTINALL}) ? $DATA{$row}{$H_QUANTINALL} : 0);
@@ -313,7 +320,7 @@ sub addGlobalSheet {
           if($col =~ m/^Abundance: .*: $label, Sample$/) {
             if($cell ne "") {
               addPlusOneToSummary("nbQ", $label, $row);
-              addMedianToSummary($cell, $label, $row);
+              storeAbundanceToSummary($cell, $label, $row);
             }
           } elsif($col =~ m/^Found in Sample: .*: $label, Sample$/) {
             addPlusOneToSummary("nbI", $label, $row) if($cell eq "High");
@@ -336,8 +343,8 @@ sub addSummarySheet {
   my $worksheet = addWorksheet($workbook, "Summary");
 
   # prepare formats
-  # add center H&V
   my $fNormal = $workbook->add_format();
+  my $fWarning = $workbook->add_format(%F_WARNING);
   my $fHeader = $workbook->add_format(%F_HEADER, %F_BORDERS, %F_BLUE);
   my $fMerge = $workbook->add_format(%F_MERGE, %F_BORDERS);
   my $fBorderBottom = $workbook->add_format(%F_BORDER_B);
@@ -347,16 +354,30 @@ sub addSummarySheet {
   my $fBorderRightPct = $workbook->add_format(%F_BORDER_R, %F_PCT);
   my $fBorderBottomDec = $workbook->add_format(%F_BORDER_B, %F_DEC);
   my $fBorderBottomRightDec = $workbook->add_format(%F_BORDER_B, %F_BORDER_R, %F_DEC);
-  my $fQuantNum = $workbook->add_format(%F_YELLOW);
-  my $fQuantNumLast = $workbook->add_format(%F_YELLOW, %F_BORDER_R);
-  my $fQuantPct = $workbook->add_format(%F_PCT, %F_YELLOW);
-  my $fQuantPctLast = $workbook->add_format(%F_PCT, %F_YELLOW, %F_BORDER_R);
-  my $fIdentNum = $workbook->add_format(%F_ORANGE);
-  my $fIdentNumLast = $workbook->add_format(%F_ORANGE, %F_BORDER_R);
-  my $fIdentPct = $workbook->add_format(%F_PCT, %F_ORANGE);
-  my $fIdentPctLast = $workbook->add_format(%F_PCT, %F_ORANGE, %F_BORDER_R);
-  my $fRatio = $workbook->add_format(%F_DEC, %F_BLUE, %F_BORDER_B);
-  my $fRatioLast = $workbook->add_format(%F_DEC, %F_BLUE, %F_BORDER_B, %F_BORDER_R);
+  # Colors have been removed
+  # my $fQuantNum = $workbook->add_format(%F_YELLOW);
+  # my $fQuantNumLast = $workbook->add_format(%F_YELLOW, %F_BORDER_R);
+  # my $fQuantPct = $workbook->add_format(%F_PCT, %F_YELLOW);
+  # my $fQuantPctLast = $workbook->add_format(%F_PCT, %F_YELLOW, %F_BORDER_R);
+  # my $fIdentNum = $workbook->add_format(%F_ORANGE);
+  # my $fIdentNumLast = $workbook->add_format(%F_ORANGE, %F_BORDER_R);
+  # my $fIdentPct = $workbook->add_format(%F_PCT, %F_ORANGE);
+  # my $fIdentPctLast = $workbook->add_format(%F_PCT, %F_ORANGE, %F_BORDER_R);
+  # my $fRatio = $workbook->add_format(%F_DEC, %F_BLUE, %F_BORDER_B);
+  # my $fRatioLast = $workbook->add_format(%F_DEC, %F_BLUE, %F_BORDER_B, %F_BORDER_R);
+  my $fQuantNum = $workbook->add_format();
+  my $fQuantNumLast = $workbook->add_format(%F_BORDER_R);
+  my $fQuantPct = $workbook->add_format(%F_PCT);
+  my $fQuantPctLast = $workbook->add_format(%F_PCT, %F_BORDER_R);
+  my $fIdentNum = $workbook->add_format();
+  my $fIdentNumLast = $workbook->add_format(%F_BORDER_R);
+  my $fIdentPct = $workbook->add_format(%F_PCT);
+  my $fIdentPctLast = $workbook->add_format(%F_PCT, %F_BORDER_R);
+  my $fRatio = $workbook->add_format(%F_DEC, %F_BORDER_B);
+  my $fRatioLast = $workbook->add_format(%F_DEC, %F_BORDER_B, %F_BORDER_R);
+  
+  # prepare for the median denominator
+  my $colDenom = 0;
   
   # write headers
   my @headers = ("Category", "Information", @VALID_LABELS);
@@ -369,13 +390,18 @@ sub addSummarySheet {
   push(@headers, $COLS->{"N"});
   my $colId = 0;
   foreach (@headers) {
+    $colDenom = $colId if($_ eq $DENOM_LABEL);
     $worksheet->write(0, $colId++, $_, $fHeader);
   }
   
   # prepare order of data
   my @categories = ("O", "Q", "I", "V", "QV");
-  my @info = ("nbQ", "pctQ", "nbI", "pctI", "M", "R");
+  my @info = ("nbQ", "pctQ", "pctQI", "nbI", "pctI", "M", "R");
   my @labels = (1 .. ($NB_VALID_LABELS - 1), "A", "1+", "N");
+  
+  # prepare denominators addresses
+  my $adrNbQuantified = getAddress(1, scalar(@headers) - 2);
+  my $adrNbIdentified = getAddress(4, scalar(@headers) - 2);
   
   # write each category (Overall, etc)
   for (my $i = 0; $i < scalar(@categories); $i++) {
@@ -385,68 +411,101 @@ sub addSummarySheet {
     # Quantified and identified peptides
     $worksheet->write($row, 1, $INFO->{"nbQ"}, $fBorderBottomRight);
     $worksheet->write($row + 1, 1, $INFO->{"pctQ"}, $fBorderBottomRight);
-    $worksheet->write($row + 2, 1, $INFO->{"nbI"}, $fBorderBottomRight);
-    $worksheet->write($row + 3, 1, $INFO->{"pctI"}, $fBorderBottomRight);
-    $worksheet->write($row + 4, 1, $INFO->{"M"}, $fBorderBottomRight);
-    $worksheet->write($row + 5, 1, $INFO->{"R"}, $fBorderBottomRight);
+    $worksheet->write($row + 2, 1, $INFO->{"pctQI"}, $fBorderBottomRight);
+    $worksheet->write($row + 3, 1, $INFO->{"nbI"}, $fBorderBottomRight);
+    $worksheet->write($row + 4, 1, $INFO->{"pctI"}, $fBorderBottomRight);
+    $worksheet->write($row + 5, 1, $INFO->{"M"}, $fBorderBottomRight);
+    $worksheet->write($row + 6, 1, $INFO->{"R"}, $fBorderBottomRight);
     # prepare the median for the lowest value
-    my $denomMedian = median(@{$SUMMARY{$cat}{"MED_$DENOM_LABEL"}});
+    my $adrDenomMedian = getAddress($row + 5, $colDenom);
     # Results per label
     for (my $j = 0; $j < $NB_VALID_LABELS; $j++) {
       my $label = $VALID_LABELS[$j];
+      my $nbQ = (exists($SUMMARY{$cat}{"nbQ"}{$label}) ? $SUMMARY{$cat}{"nbQ"}{$label} : 0);
+      my $nbI = (exists($SUMMARY{$cat}{"nbI"}{$label}) ? $SUMMARY{$cat}{"nbI"}{$label} : 0);
       my $format = ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal);
-      $worksheet->write($row, $j + 2, $SUMMARY{$cat}{"nbQ"}{$label}, $format);
+      $worksheet->write($row, $j + 2, $nbQ, $format);
       $worksheet->write($row + 1, $j + 2, "", $format);
-      # $format->set_num_format('0.00%');
-      $worksheet->write($row + 2, $j + 2, $SUMMARY{$cat}{"nbI"}{$label}, $format);
-      $worksheet->write($row + 3, $j + 2, "", $format);
+      $worksheet->write($row + 2, $j + 2, "", $format);
+      $worksheet->write($row + 3, $j + 2, $nbI, $format);
+      $worksheet->write($row + 4, $j + 2, "", $format);
       # add median abundances
-      my $median = median(@{$SUMMARY{$cat}{"MED_$label"}}, $format);
-      $worksheet->write_number($row + 4, $j + 2, $median, $format);
+      my $median = calcMedian($cat, $label);
+      $worksheet->write($row + 5, $j + 2, $median, $format);
       $format = ($j == $NB_VALID_LABELS - 1 ? $fRatioLast : $fRatio);
-      $worksheet->write($row + 5, $j + 2, ratio($median, $denomMedian), $format);
+      $worksheet->write_formula($row + 6, $j + 2, "=".getAddress($row + 5, $j + 2)."/".$adrDenomMedian, $format);
     }
-    # Results per label category
+    # Results per label category (percentages should be written as formula)
     $colId = $NB_VALID_LABELS + 1;
     foreach my $j (1 .. ($NB_VALID_LABELS - 1)) {
+      my $column = $colId + $j;
       my $nbQ = (exists($SUMMARY{$cat}{"nbQ"}{$j}) ? $SUMMARY{$cat}{"nbQ"}{$j} : 0);
       my $nbI = (exists($SUMMARY{$cat}{"nbI"}{$j}) ? $SUMMARY{$cat}{"nbI"}{$j} : 0);
-      $worksheet->write($row, $colId + $j, $nbQ, ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
-      $worksheet->write($row + 1, $colId + $j, $nbQ / $NB_PEPTIDES, ($j == $NB_VALID_LABELS - 1 ? $fBorderRightPct : $fNormalPct));
-      $worksheet->write($row + 2, $colId + $j, $nbI, ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
-      $worksheet->write($row + 3, $colId + $j, $nbI / $NB_PEPTIDES, ($j == $NB_VALID_LABELS - 1 ? $fBorderRightPct : $fNormalPct));
-      $worksheet->write($row + 4, $colId + $j, "", ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
-      $worksheet->write($row + 5, $colId + $j, "", ($j == $NB_VALID_LABELS - 1 ? $fBorderBottomRight : $fBorderBottom));
+      $worksheet->write($row, $column, $nbQ, ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
+      $worksheet->write_formula($row + 1, $column, "=".getAddress($row, $column)."/$adrNbQuantified", ($j == $NB_VALID_LABELS - 1 ? $fBorderRightPct : $fNormalPct));
+      $worksheet->write_formula($row + 2, $column, "=".getAddress($row, $column)."/$adrNbIdentified", ($j == $NB_VALID_LABELS - 1 ? $fBorderRightPct : $fNormalPct));
+      $worksheet->write($row + 3, $column, $nbI, ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
+      $worksheet->write_formula($row + 4, $column, "=".getAddress($row + 3, $column)."/$adrNbIdentified", ($j == $NB_VALID_LABELS - 1 ? $fBorderRightPct : $fNormalPct));
+      $worksheet->write($row + 5, $column, "", ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
+      $worksheet->write($row + 6, $column, "", ($j == $NB_VALID_LABELS - 1 ? $fBorderBottomRight : $fBorderBottom));
     }
     $colId += $NB_VALID_LABELS;
     foreach my $j ("A", "1+", "N") {
       my $nbQ = (exists($SUMMARY{$cat}{"nbQ"}{$j}) ? $SUMMARY{$cat}{"nbQ"}{$j} : 0);
       my $nbI = (exists($SUMMARY{$cat}{"nbI"}{$j}) ? $SUMMARY{$cat}{"nbI"}{$j} : 0);
       $worksheet->write($row, $colId, $nbQ, ($j eq "N" ? $fQuantNumLast : $fQuantNum));
-      $worksheet->write($row + 1, $colId, $nbQ / $NB_PEPTIDES, ($j eq "N" ? $fQuantPctLast : $fQuantPct));
-      $worksheet->write($row + 2, $colId, $nbI, ($j eq "N" ? $fIdentNumLast : $fIdentNum));
-      $worksheet->write($row + 3, $colId, $nbI / $NB_PEPTIDES, ($j eq "N" ? $fIdentPctLast : $fIdentPct));
-      $worksheet->write($row + 4, $colId, "", ($j eq "N" ? $fBorderRight : $fNormal));
-      $worksheet->write($row + 5, $colId++, "", ($j eq "N" ? $fBorderBottomRight : $fBorderBottom));
+      $worksheet->write_formula($row + 1, $colId, "=".getAddress($row, $colId)."/$adrNbQuantified", ($j eq "N" ? $fQuantPctLast : $fQuantPct));
+      $worksheet->write_formula($row + 2, $colId, "=".getAddress($row, $colId)."/$adrNbIdentified", ($j eq "N" ? $fQuantPctLast : $fQuantPct));
+      $worksheet->write($row + 3, $colId, $nbI, ($j eq "N" ? $fIdentNumLast : $fIdentNum));
+      $worksheet->write_formula($row + 4, $colId, "=".getAddress($row + 3, $colId)."/$adrNbIdentified", ($j eq "N" ? $fIdentPctLast : $fIdentPct));
+      $worksheet->write($row + 5, $colId, "", ($j eq "N" ? $fBorderRight : $fNormal));
+      $worksheet->write($row + 6, $colId++, "", ($j eq "N" ? $fBorderBottomRight : $fBorderBottom));
     }
   }
   
-  # set columns width: 25 30 12..12
+  # set columns width: 25 55 12..12
   $worksheet->set_column(0, 0, 25);
-  $worksheet->set_column(1, 1, 30);
+  $worksheet->set_column(1, 1, 55);
   $worksheet->set_column(2, scalar(@headers) - 1, 12);
 
   # finalize the sheet
+  my $row = scalar(@categories) * scalar(@info);
   $worksheet->freeze_panes(1);
-  $worksheet->autofilter(0, 0, scalar(@categories) * scalar(@info), scalar(@headers) - 1);
+  $worksheet->autofilter(0, 0, $row, scalar(@headers) - 1);
+  
+  # add a line at the end to warn that PD returns peptides identified in no labels at all and that these peptides are not considered here
+  $worksheet->write($row + 2, 0, "Warning: Proteome Discoverer may return peptides although they are not identified in any label! Such peptides are not considered in the percentages displayed above.", $fWarning);
+}
+
+sub calcMedian {
+  my ($category, $label) = @_;
+  return "" if(!exists($SUMMARY{$category}{"MED_$label"}));
+  my @values = @{$SUMMARY{$category}{"MED_$label"}};
+  # @values = grep { $_ ne '' } @values;
+  return "" if(scalar(@values) == 0);
+  return median(@values);
 }
 
 sub ratio {
   my ($num, $denom) = @_;
-  return "#n/a" if(!$num);
+  return "#n/a" if(!$num || $num eq "");
   return "#div/0" if(!$denom || $denom eq "n/a" || $denom eq 0);
   return 0 if($num eq 0);
   return $num / $denom;
+}
+
+# this method starts at 0 ! So the column A will match to value 0
+sub getColumnName {
+  my ($number) = (@_);
+    # A = chr(65)
+  return chr($number + 65) if($number < 26);
+  return chr((int($number / 26) - 1) + 65) . chr(($number % 26) + 65) if($number < 676);
+  return "Error: $number is too big";
+}
+
+sub getAddress() {
+  my ($row, $column) = @_;
+  return "\$".getColumnName($column)."\$".($row+1);
 }
 
 sub addCategorySheet {
