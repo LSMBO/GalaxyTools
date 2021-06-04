@@ -8,7 +8,7 @@
     "action": "generate"
   },
   "options": {
-    "contaminants": "k,t,o",
+    "contaminants": true,
     "exclude": "None"
   },
   "decoy": true

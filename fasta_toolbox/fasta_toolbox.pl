@@ -6,7 +6,7 @@ use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
 use Archive::Zip::MemberRead;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
+use lib dirname(__FILE__)."/../";
 use LsmboFunctions;
 
 my ($paramFile, $outputFile, @mergingData) = @ARGV;
@@ -15,13 +15,14 @@ my ($paramFile, $outputFile, @mergingData) = @ARGV;
 my %PARAMS = %{parameters($paramFile)};
 # make sure the boolean value are in textarea
 $PARAMS{"decoy"} = booleanToString($PARAMS{"decoy"}) if exists($PARAMS{"decoy"});
+$PARAMS{"options"}{"contaminants"} = booleanToString($PARAMS{"options"}{"contaminants"}) if exists($PARAMS{"options"}{"contaminants"});
 # prepare a hash to store the match between the files to merge and their name
 my %MERGE;
 
 # define the name of the fasta file, based on user parameters
 my $fastaFile = $PARAMS{"name"}."_";
 $fastaFile .= "D" if($PARAMS{"decoy"} eq "true");
-$fastaFile .= "C" if($PARAMS{"options"}{"contaminants"} ne "None");
+$fastaFile .= "C" if($PARAMS{"options"}{"contaminants"} eq "true");
 if($PARAMS{"toolbox"}{"action"} eq "generate") {
     $fastaFile .= "p".uc($PARAMS{"toolbox"}{"source"});
 } else {
@@ -33,11 +34,7 @@ $fastaFile .= "_".getDate("%Y%m%d").".fasta";
 my @fastaFiles = ();
 
 # add contaminants first (so if there are duplicate sequences, we would keep the proteins tagged as contaminant)
-if($PARAMS{"options"}{"contaminants"} ne "None") {
-    push(@fastaFiles, dirname(__FILE__)."/uniprot_keratin.fasta") if($PARAMS{"options"}{"contaminants"} =~ m/k/);
-    push(@fastaFiles, dirname(__FILE__)."/uniprot_trypsin.fasta") if($PARAMS{"options"}{"contaminants"} =~ m/t/);
-    push(@fastaFiles, dirname(__FILE__)."/uniprot_common.fasta") if($PARAMS{"options"}{"contaminants"} =~ m/o/);
-}
+push(@fastaFiles, dirname(__FILE__)."/cRAP.fasta") if($PARAMS{"options"}{"contaminants"} eq "true");
 
 # retrieve sequences from uniprot
 my $uniprotFasta = "";
@@ -106,13 +103,15 @@ removeSubSequences() if($PARAMS{"options"}{"exclude"} =~ m/subSeq/);
 print "Writing target proteins in the output file\n";
 open(my $fh, ">", $fastaFile) or stderr("Failed to create the fasta file: $!", 1);
 my $nbTarget = 0;
-foreach my $sequence (keys(%sequences)) {
-    my $accession = $sequences{$sequence};
-    if($proteins{$accession} == 1) {
+my $nbConta = 0;
+foreach my $accession (sort(keys(%proteins))) {
+    my $sequence = $proteins{$accession};
+    if($sequence ne "") {
         print $fh "$accession\n";
         $sequence =~ s/(.{80})/$1\n/g;
         print $fh "$sequence\n";
         $nbTarget++;
+        $nbConta++ if($accession =~ m/^>CON_/);
     }
 }
 
@@ -120,9 +119,9 @@ foreach my $sequence (keys(%sequences)) {
 my $nbDecoy = 0;
 if($PARAMS{"decoy"} eq "true") {
     print "Generating decoy entries\n";
-    foreach my $sequence (keys(%sequences)) {
-        my $accession = $sequences{$sequence};
-        if($proteins{$accession} == 1) {
+    foreach my $accession (sort(keys(%proteins))) {
+        my $sequence = $proteins{$accession};
+        if($sequence ne "") {
             # add the decoy tag to the accession
             $accession =~ s/^>([^\s]*)(.*)/>###REV###$1 Reverse sequence, was$2/;
             print $fh "$accession\n";
@@ -140,7 +139,7 @@ close $fh;
 unlink($uniprotFasta) if(-f $uniprotFasta);
 
 #create the metadata file at the end
-my $metadataFile = createMetadataFile($fastaFile, $uniprotVersion, $nbTarget, $nbDecoy, \@removedProteinsBecauseSameId, \@removedProteinsBecauseSameSequence, \@removedProteinsBecauseSubSequence);
+my $metadataFile = createMetadataFile($fastaFile, $uniprotVersion, $nbConta, $nbTarget, $nbDecoy, \@removedProteinsBecauseSameId, \@removedProteinsBecauseSameSequence, \@removedProteinsBecauseSubSequence);
 
 # compress the files and return a zip file
 print "Compression of the fasta file\n";
@@ -190,9 +189,9 @@ sub addOption {
 sub copyProtein {
     my ($accession, $sequence) = @_;
     # do not copy the protein if it's a decoy
-    if($accession =~ m/^>###REV###/ || $accession =~ m/REVERSE/) {}
+    if($accession =~ m/^>###REV###/ || $accession =~ m/REVERSE/) {
     # do not copy the protein if the accession number has already been copied
-    elsif(exists($proteins{$accession})) {
+    } elsif(exists($proteins{$accession})) {
         print STDOUT "Duplicate protein id not copied: ".formatAccession($accession)."\n";
         push(@removedProteinsBecauseSameId, formatAccession($accession, 0));
     } else {
@@ -201,7 +200,7 @@ sub copyProtein {
             print STDOUT formatAccession($accession)." has the same sequence has ".formatAccession($sequences{$sequence})."\n" if(exists($sequences{$sequence}))."\n";
             push(@removedProteinsBecauseSameSequence, formatAccession($accession, 0));
         } else {
-            $proteins{$accession} = 1;
+            $proteins{$accession} = $sequence;
             $sequences{$sequence} = $accession;
         }
     }
@@ -235,9 +234,9 @@ sub removeSubSequences {
             my $longerSequence = $sortedSequences[$j];
             # search if the shorter sequence is included in the longer sequence (-1 if it's not)
             if($longerSequence =~ m/$shorterSequence/) {
-                # it is a subsequence, search for its accession number and set its value to 0
+                # it is a subsequence, search for its accession number and remove its value
                 my $accession = $sequences{$shorterSequence};
-                $proteins{$accession} = 0;
+                $proteins{$accession} = "";
                 print STDOUT formatAccession($accession)." is a sub-sequence of ".formatAccession($sequences{$longerSequence})."\n";
                 push(@removedProteinsBecauseSubSequence, formatAccession($accession, 0));
                 $nb++;
@@ -260,7 +259,7 @@ sub getFastaFileName {
 }
 
 sub createMetadataFile {
-    my ($fastaFile, $uniprotVersion, $nbTarget, $nbDecoy, $ptrSameId, $ptrSameSeq, $ptrSubSeq) = @_;
+    my ($fastaFile, $uniprotVersion, $nbConta, $nbTarget, $nbDecoy, $ptrSameId, $ptrSameSeq, $ptrSubSeq) = @_;
     
     # open the metadata file and write the date and parameters
     my $metadataFile = $fastaFile;
@@ -290,13 +289,7 @@ sub createMetadataFile {
             print $fh "    $fasta$n";
         }
     }
-    my @contaminants;
-    if($PARAMS{"options"}{"contaminants"} ne "None") {
-        push(@contaminants, "Keratins") if($PARAMS{"options"}{"contaminants"} =~ m/k/);
-        push(@contaminants, "Trypsin") if($PARAMS{"options"}{"contaminants"} =~ m/t/);
-        push(@contaminants, "Other common contaminants") if($PARAMS{"options"}{"contaminants"} =~ m/o/);
-    }
-    print $fh "- Contaminants: ".join(", ", @contaminants)."$n" if(scalar(@contaminants) > 0);
+    print $fh "- Contaminants: ".$PARAMS{"options"}{"contaminants"}."$n";
     print $fh "- Remove duplicate proteins with same sequences: ".($PARAMS{"options"}{"exclude"} =~ m/sameSeq/ ? "true" : "false")."$n";
     print $fh "- Remove duplicate proteins included in other proteins: ".($PARAMS{"options"}{"exclude"} =~ m/subSeq/ ? "true" : "false")."$n";
     print $fh "- Generate decoy proteins: ".$PARAMS{"decoy"}."$n";
@@ -304,8 +297,10 @@ sub createMetadataFile {
     print $fh "$n";
     print $fh "Output file:$n";
     print $fh "- File size: ".format_bytes(-s $fastaFile)." (".(-s $fastaFile)." bytes)$n";
+    print $fh "- Number of contaminant proteins (identified by the tag 'CON_'): $nbConta$n";
     print $fh "- Number of target proteins: $nbTarget$n";
-    print $fh "- Number of decoy proteins: $nbDecoy$n";
+    print $fh "- Number of decoy proteins (identified by the tag '###REV###_'): $nbDecoy$n";
+    print $fh "- Total number of proteins: ".($nbTarget+$nbDecoy)."$n";
     
     print $fh "$n";
     print $fh "Duplicate proteins removed (before generating the decoy entries):$n";

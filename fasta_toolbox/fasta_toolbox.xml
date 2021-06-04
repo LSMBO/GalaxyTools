@@ -1,5 +1,8 @@
-<tool id="fasta_toolbox" name="Fasta toolbox" version="1.0.2">
+<tool id="fasta_toolbox" name="Fasta toolbox" version="1.1.0">
     <description>Generation of Fasta files</description>
+    <macros>
+        <import>macroCrap.xml</import>
+    </macros>
     <requirements>
     </requirements>
     <command detect_errors="exit_code"><![CDATA[
@@ -57,11 +60,7 @@
 
       <section name="options" title="Advanced options (click to include or exclude proteins)" expanded="false" >
         <!-- Add contaminant proteins -->
-        <param name="contaminants" type="select" display="checkboxes" multiple="true" label="Include contaminant proteins" help="The fasta files for each choice are available at the bottom of the page">
-          <option value="k" selected="true">Keratin proteins</option>
-          <option value="t" selected="true">Trypsin protein</option>
-          <option value="o" selected="true">Other common contaminant proteins</option>
-        </param>
+        <expand macro="crap" />
         <param name="exclude" type="select" display="checkboxes" multiple="true" label="Exclude duplicate proteins based on..." help="Proteins with the same identifiers will always be removed">
           <option value="sameSeq" selected="false">Same sequence as another protein</option>
           <option value="subSeq" selected="false">Sequence contained in another protein (Warning, this option is very time consuming, it takes an hour to parse 100 000 proteins)</option>
@@ -87,7 +86,7 @@
                 <param name="genopts" value="" />
             </conditional>
             <section name="options">
-                <param name="contaminants" value="" />
+                <param name="contaminants" value="false" />
                 <param name="exclude" value="" />
             </section>
             <param name="decoy" value="true" />
@@ -105,13 +104,7 @@ You can restrict the proteins returned to Swiss-Prot only, or have both UniprotK
 
 Several options are provided:
 
-* Contaminants: you can choose to add proteins commonly considered as contaminant. These proteins will be tagged as contaminants using the prefix CON (ie. protein sp|P13645 would be renamed CON_sp|P13645). You can check the contaminant proteins with the following fasta files:
-
-  * `Keratin proteins </static/contaminants/keratin_contaminants.fasta>`_
-
-  * `Trypsin protein </static/contaminants/trypsin_contaminant.fasta>`_
-
-  * `Other common contaminant proteins </static/contaminants/other_common_contaminants.fasta>`_
+* Contaminants: you can choose to add proteins commonly considered as contaminant. These proteins will be tagged as contaminants using the prefix CON (ie. protein sp|P13645 would be renamed CON_sp|P13645). The list of proteins considered as contaminant is based on the `common Repository of Adventitious Proteins (cRAP) <https://www.thegpm.org/crap/>`_ and their sequence is retrieved from Uniprot on a regular basis. The standalone fasta file is available `here </static/contaminants/cRAP.fasta>`_.
 
 * Remove duplicate proteins: make sure that no sequence appears twice in the list of target proteins. For instance, if the taxonomy you selected contains a contaminant protein, it will not appear with and without the CON tag (only the tagged version will remain).
 
@@ -133,6 +126,8 @@ Eventually, the 'Fasta toolbox' can be used for all Fasta files, even from a dif
 
 
 **Updates**
+
+* 21/05/2021: replaces fixed contaminant files with automatically updated contaminant proteins from cRAP.
 
 * 12/04/2021: improved the speed of the search for sub sequences
 

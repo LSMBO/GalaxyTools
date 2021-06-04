@@ -5,13 +5,7 @@ You can restrict the proteins returned to Swiss-Prot only, or have both UniprotK
 
 Several options are provided:
 
-* Contaminants: you can choose to add proteins commonly considered as contaminant. These proteins will be tagged as contaminants using the prefix CON (ie. protein sp|P13645 would be renamed CON_sp|P13645). You can check the contaminant proteins with the following fasta files:
-
-  * Keratin proteins: https://<your.galaxy.instance>/static/contaminants/keratin_contaminants.fasta
-
-  * Trypsin protein: https://<your.galaxy.instance>/static/contaminants/trypsin_contaminant.fasta
-
-  * Other common contaminant proteins: https://<your.galaxy.instance>/static/contaminants/other_common_contaminants.fasta
+* Contaminants: you can choose to add proteins commonly considered as contaminant. These proteins will be tagged as contaminants using the prefix CON (ie. protein sp|P13645 would be renamed CON_sp|P13645). The list of proteins considered as contaminant is based on the [common Repository of Adventitious Proteins (cRAP)](https://www.thegpm.org/crap/) and their sequence is retrieved from Uniprot on a regular basis. The standalone fasta file is available here: https://<your.galaxy.instance>/static/contaminants/cRAP.fasta.
 
 * Remove duplicate proteins: make sure that no sequence appears twice in the list of target proteins. For instance, if the taxonomy you selected contains a contaminant protein, it will not appear with and without the CON tag (only the tagged version will remain).
 
@@ -34,3 +28,5 @@ Eventually, the 'Fasta toolbox' can be used for all Fasta files, even from a dif
 **Important note**
 
 If you want this tool in your Galaxy instance, you should create a directory 'contaminants' within the /static directory, and create symbolic links to the three contaminant files. This is not necessary for the tool to work, but it makes the fasta files accessible by the user.
+If you want this tool in your Galaxy instance, you must add the getUpdatedCrapFile.pl in your crontab and run it once a week. This script will create the cRAP.fasta file necessary for the addition of contaminant proteins, and update the macroCrap.xml file.
+You should also create a symbolic link in the /static directory so that the link in the help section will allow the user to access the fasta file.
