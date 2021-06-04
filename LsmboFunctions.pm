@@ -67,7 +67,7 @@ sub booleanToString {
 # Character '+' is not allowed in Galaxy parameters
 sub checkUniprotFrom {
     my ($from) = @_;
-    return "ACC+ID" if($from eq "ACC_ID");
+    return "ACC,ID" if($from eq "ACC_ID");
     return $from;
 }
 
@@ -513,6 +513,7 @@ sub getValue {
         } or do {
             # so far i've only seen this for zero values...
             # return 0 if($cell && $cell ne 'EOR'); # we are not expecting any 0 as a category or a GO
+            return $cell->value() if($cell);
             return "";
         }
     };
