@@ -1,0 +1,6 @@
+{
+  "cv": 20,
+  "cvcats": "5 10 15 20 40 60",
+  "threshold": 0.95,
+  "inputFile": "test.xlsx"
+}

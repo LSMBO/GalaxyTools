@@ -1,0 +1,41 @@
+<tool id="tmt_basic_filters" name="TMT basic filters" version="1.0.0">
+    <description>Process Proteome Discoverer TMT analyses</description>
+    <requirements>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/tmt_basic_filters.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <param name="inputFile" type="data" format="xlsx" multiple="false" label="Select a Proteome Discoverer output file" help="" />
+        <param name="threshold" type="hidden" value="0.95" />
+        <param name="cv" type="integer" label="CV threshold" value="20" help="Integer value between 0 and 100" />
+        <param name="cvcats" type="text" label="CV categories" value="5 10 15 20 40 60" help="Set CV values that will be used for categories. For instance '5 10' will produce three categories: 'Below 5%', 'Between 5% and 10%' and '10% and more'.">
+            <validator type="regex" message="Integer values between 0 and 100, separated by a 'space' character">^([0-9]+\s+)*[0-9]+$</validator>
+        </param>
+    </inputs>
+ <outputs>
+      <data format="xlsx" name="output" label="TMT_Basic_Filters" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="inputFile" value="test/test.xlsx" />
+            <param name="cv" value="20" />
+            <param name="cvcats" value="5 10 15 20 40 60" />
+            <param name="threshold" value="0.95" />
+            <assert_stdout>
+                <has_line line="Correct ending of the script" />
+            </assert_stdout>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+**What it does**
+
+    ]]>
+    </help>
+    <citations>
+    </citations>
+</tool>
