@@ -127,9 +127,11 @@ Eventually, the 'Fasta toolbox' can be used for all Fasta files, even from a dif
 
 **Updates**
 
+* 16/06/2021: improved the speed of the search for sub sequences by using multithreading.
+
 * 21/05/2021: replaces fixed contaminant files with automatically updated contaminant proteins from cRAP.
 
-* 12/04/2021: improved the speed of the search for sub sequences
+* 12/04/2021: improved the speed of the search for sub sequences.
 
     ]]>
     </help>

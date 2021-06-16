@@ -4,6 +4,8 @@ use warnings;
 
 use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
 use Archive::Zip::MemberRead;
+use Parallel::Loops;
+use Sys::CpuAffinity;
 
 use File::Basename;
 use lib dirname(__FILE__)."/../";
@@ -221,31 +223,89 @@ sub formatAccession {
 # This algorithm orders the sequences by length and compares each sequence only with longer sequences.
 # Comparing longer sequences to shorter ones would reduce the number of comparisons, but comparing more longer sequences would take more time.
 # Tests have been made on 40492 protein sequences, this version takes about 32 minutes when the alternative takes more than 35.
+# sub removeSubSequences {
+    # my $nb = 0;
+    # # order sequences by length (smallest sequences first)
+    # my @sortedSequences = sort { length $a <=> length $b } keys(%sequences);
+    # my $total = scalar(@sortedSequences);
+    # # only compare sequences to larger sequences
+    # print "Searching for sub sequences\n";
+    # my $i = 0;
+    # foreach my $shorterSequence (@sortedSequences) {
+        # for(my $j = $i+1; $j < $total; $j++) {
+            # my $longerSequence = $sortedSequences[$j];
+            # # search if the shorter sequence is included in the longer sequence (-1 if it's not)
+            # if($longerSequence =~ m/$shorterSequence/) {
+                # # it is a subsequence, search for its accession number and remove its value
+                # my $accession = $sequences{$shorterSequence};
+                # $proteins{$accession} = "";
+                # print STDOUT formatAccession($accession)." is a sub-sequence of ".formatAccession($sequences{$longerSequence})."\n";
+                # push(@removedProteinsBecauseSubSequence, formatAccession($accession, 0));
+                # $nb++;
+                # last; # no need to compare this sequence to others
+            # }
+        # }
+        # $i++;
+    # }
+    # print "$nb sub sequences have been found in the $total protein sequences\n";
+# }
+
+sub getNbCpu {
+    my $nb = Sys::CpuAffinity::getNumCpus();
+    # only use 1 cpu if there is 1 or 2 cpu (or if the number could not be obtained)
+    return 1 if(!$nb || $nb <= 2);
+    # use 3/4 of the cpu otherwise
+    return int($nb * 0.75);
+    
+}
+
+# If we assume there is very little subsequences, then we may not need to care about 
+# removing subsequences to avoid checking them twice.
+# A multithreaded approach could be to compare sequence i in [1..nbCPU] to all the others,
+# and then moving to i+nbCPU, until the end of the list.
+# This should reduce the complexity to N/nbCPU, even if the total number of comparisons get higher
 sub removeSubSequences {
-    my $nb = 0;
-    # order sequences by length (smallest sequences first)
+    my $nbCPU = getNbCpu();
+    print "Searching for sub sequences, using $nbCPU CPUs...\n";
+    # sort the sequences shorter to longer
     my @sortedSequences = sort { length $a <=> length $b } keys(%sequences);
     my $total = scalar(@sortedSequences);
-    # only compare sequences to larger sequences
-    print "Searching for sub sequences\n";
-    my $i = 0;
-    foreach my $shorterSequence (@sortedSequences) {
-        for(my $j = $i+1; $j < $total; $j++) {
-            my $longerSequence = $sortedSequences[$j];
-            # search if the shorter sequence is included in the longer sequence (-1 if it's not)
-            if($longerSequence =~ m/$shorterSequence/) {
-                # it is a subsequence, search for its accession number and remove its value
-                my $accession = $sequences{$shorterSequence};
-                $proteins{$accession} = "";
-                print STDOUT formatAccession($accession)." is a sub-sequence of ".formatAccession($sequences{$longerSequence})."\n";
-                push(@removedProteinsBecauseSubSequence, formatAccession($accession, 0));
-                $nb++;
-                last; # no need to compare this sequence to others
+    # prepare the parallelisation
+    my %returnValues;
+    my $pl = Parallel::Loops->new($nbCPU);
+    $pl->share(\@sortedSequences, \%returnValues);
+    # start multithreading
+    $pl->foreach([1 .. $nbCPU], sub {
+        my $n = $_;
+        for(my $i = $n - 1; $i < $total; $i += $nbCPU) {
+            my $shorterSequence = $sortedSequences[$i];
+            my $isSub = 0;
+            my $j = $i + 1;
+            while($isSub == 0 && $j < $total) {
+                # no need to compare this sequence to others
+                if(index($sortedSequences[$j++], $shorterSequence) != -1) {
+                    push(@{$returnValues{$n}{"subseq"}}, $shorterSequence);
+                    $isSub = 1;
+                }
             }
         }
-        $i++;
+    });
+    # gather all the sub-sequences
+    my @subSequences;
+    for(1..$nbCPU) {
+        my @subs = @{$returnValues{$_}{"subseq"}};
+        push(@subSequences, @subs);
     }
-    print "$nb sub sequences have been found in the $total protein sequences\n";
+    # remove the sub-sequences
+    my $nbSubSequences = 0;
+    foreach(sort(uniq(@subSequences))) {
+        my $accession = $sequences{$_};
+        $proteins{$accession} = "";
+        print STDOUT formatAccession($accession)." is a sub-sequence\n";
+        push(@removedProteinsBecauseSubSequence, formatAccession($accession, 0));
+        $nbSubSequences++;
+    }
+    print STDOUT "$nbSubSequences sub sequences have been found in the $total protein sequences\n";
 }
 
 sub getFastaFileName {
