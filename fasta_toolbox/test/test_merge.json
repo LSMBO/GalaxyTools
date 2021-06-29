@@ -1,0 +1,16 @@
+{
+  "name": "output",
+  "initials": "ABU",
+  "toolbox": {
+    "input_fastas": [
+      "test_merge1.fasta", 
+      "test_merge2.fasta"
+    ],
+    "action": "merge"
+  },
+  "options": {
+    "contaminants": false,
+    "exclude": "sameSeq,subSeq"
+  },
+  "decoy": true
+}
