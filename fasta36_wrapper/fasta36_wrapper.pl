@@ -2,18 +2,22 @@
 use strict;
 use warnings;
 
-use Parallel::Loops;
-use Scalar::Util qw(looks_like_number);
-
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(archive booleanToString extractListEntries parameters stderr);
+use LsmboExcel qw(extractIds writeExcelLine writeExcelLineF);
+use LsmboRest qw(REST_POST_Uniprot_fasta);
+use LsmboMPI;
+
+use Cwd 'abs_path';
 
 my ($paramFile, $outputFile) = @ARGV;
 
 my %PARAMS = %{parameters($paramFile)};
 my $version = "fasta36-36.3.8h_04-May-2020";
-my $fasta36 = dirname(__FILE__)."/$version/bin/fasta36";
+my $fasta36 = abs_path(dirname(__FILE__))."/$version/bin/fasta36";
+$fasta36 .= ".exe" if(!-f $fasta36 && -f "$fasta36.exe"); # windows only
+stderr("$fasta36 does not exist !") if(!-f $fasta36);
 my $inputCopy = "input.xlsx";
 my $uniprotVersion = "";
 
@@ -26,7 +30,7 @@ my $fastaLibrary = $PARAMS{"fastaLibrary"};
 
 # before running fasta36, read the library to store the protein descriptions
 my %descriptions;
-open(my $fh, "<", $fastaLibrary) or stderr("Can't read the fasta library: $!", 1);
+open(my $fh, "<", $fastaLibrary) or stderr("Can't read the fasta library: $!");
 while(<$fh>) {
     if(m/^>([^\s]*) (.*)/) {
         $descriptions{$1} = $2;
@@ -71,7 +75,7 @@ sub convertFasta {
             # copy the excel file locally, otherwise it's not readable (i guess the library does not like files without the proper extension)
             copy($PARAMS{"proteins"}{"excelFile"}, $inputCopy);
             # open the output file
-            open(my $fh, ">", $inputFile) or stderr("Can't write to file '$inputFile': $!", 1);
+            open(my $fh, ">", $inputFile) or stderr("Can't write to file '$inputFile': $!");
             my @ids = extractIds($inputCopy, $PARAMS{"proteins"}{"sheetNumber"}, $PARAMS{"proteins"}{"cellAddress"}, $inputFile);
             foreach my $id (@ids) {
                 print $fh "$id\n";
@@ -89,7 +93,7 @@ sub convertFasta {
     foreach my $fasta (@fastaFiles) {
         my $id = "";
         my $content = "";
-        open(my $fh, "<", $fasta) or stderr("Can't open fasta file $fasta: $!", 1);
+        open(my $fh, "<", $fasta) or stderr("Can't open fasta file $fasta: $!");
         while(<$fh>) {
             if(m/^>([^\s]*)/) {
                 my $nextId = $1;
@@ -114,34 +118,27 @@ sub convertFasta {
 sub createFa {
     my ($id, $content) = @_;
     $id =~ s/\|/_/g;
-    open(my $fh, ">", "$id.fa") or stderr("Can't create file $id.fa: $!", 1);
+    open(my $fh, ">", "$id.fa") or stderr("Can't create file $id.fa: $!");
     print $fh $content;
     close $fh;
     return "$id.fa";
 }
 
-
-# TODO verify if comparing each fa to the library is really different from comparing a unique fasta file to the library (probably yes but check it anyway)
 sub runFasta36 {
     my ($fasta36, $fastaLibrary, @fastaFiles) = @_;
-    print "runFasta36(($fasta36, $fastaLibrary, @fastaFiles)\n";
-
-    print "Comparing proteins sequences to the library $fastaLibrary\n";
-    my $maxProcs = 15;
-    my $pl = Parallel::Loops->new($maxProcs);
-    my @params = ($fasta36, $fastaLibrary, 3);
-    $pl->share(\@params);
-
-    $pl->foreach(\@fastaFiles, sub {
-        my $fastaFile = $_;
-        my ($fasta36, $fastaLibrary, $ktup) = @params; # TODO find out what ktup is
-        my $output = $fastaFile;
+    my $ktup = 3;
+    print "Comparing ".scalar(@fastaFiles)." proteins sequences to the library $fastaLibrary [KTUP=$ktup]\n";
+    # prepare the commands to run
+    my @commandList;
+    foreach(@fastaFiles) {
+        my $output = $_;
         $output =~ s/\.fa$/.out/;
-        print("$fasta36 -m 'F9 $output' -T 1 -p $fastaFile  $fastaLibrary $ktup\n");
-        system("$fasta36 -m 'F9 $output' -T 1 -p $fastaFile  $fastaLibrary $ktup > $output.log");
-        unlink($fastaFile); # TODO may be removed ? or done only once ?
-        #print "Fasta36 on file $fastaFile is finished\n";
-    });
+        push(@commandList, "$fasta36 -m \"F9 $output\" -T 1 -p $_ $fastaLibrary $ktup > $output.log");
+    }
+    # run the commands in parallel
+    LsmboMPI::runCommandList(0.75, @commandList);
+    # delete the .fa files
+    unlink(@fastaFiles);
 }
 
 sub writeExcelFile {
@@ -170,7 +167,7 @@ sub writeExcelFile {
         writeExcelLineF($worksheet, $rowNumber++, $formatForHeaders, @headers);
         $worksheet->freeze_panes(1);
     } else {
-        open($out, ">", $outputFile) or stderr("Can't open tsv output file in write mode: $!", 1);
+        open($out, ">", $outputFile) or stderr("Can't open tsv output file in write mode: $!");
         print $out join("\t", @headers)."\n";
     }
 
@@ -181,10 +178,15 @@ sub writeExcelFile {
         $query =~ s/_/\|/g;
         # only extracts the top $nbResultsPerProtein results
         my $nb = 0;
-        open(my $fh, "<", $file) or stderr("Can't read file $file: $!", 1);
-        do {} until (eof || <$fh> =~ m/^The best scores are/);
+        open(my $fh, "<", $file) or stderr("Can't read file $file: $!");
+        my $skip = 1;
         while(<$fh>) {
             chomp;
+            if(m/^The best scores are/) {
+                $skip = 0;
+                next;
+            }
+            next if($skip == 1);
             next if(m/^\+\-/);
             if(m/^[a-zA-Z]/ && $nb < $nbResultsPerProtein) {
                 # CON_sp|P00760|TRY1_BOVIN Cationic trypsin OS=Bos tauru       ( 246) 1375 472.3 3.2e-136\t0.823 0.970 1375  231    1  231    1  231   16  246    1  246   0   0   0
@@ -213,19 +215,6 @@ sub writeExcelFile {
     }
     print "Output file is complete\n";
 }
-
-# sub writeExcelLine {
-    # my ($sheet, $row, @cells) = @_;
-    # writeLineF($sheet, $row, undef, @cells);
-# }
-
-# sub writeLineF {
-    # my ($sheet, $row, $format, @cells) = @_;
-    # my $col = 0;
-    # foreach my $cell (@cells) {
-        # $sheet->write($row, $col++, $cell, $format);
-    # }
-# }
 
 sub extractItems {
     my ($line) = @_;

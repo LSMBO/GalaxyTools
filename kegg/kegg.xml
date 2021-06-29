@@ -1,4 +1,4 @@
-<tool id="kegg" name="Kegg" version="1.0.1">
+<tool id="kegg" name="Kegg" version="1.1.0">
     <description>Get Kegg maps from Uniprot entries or Kegg identifiers</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/kegg.pl '$inputs' '$output_xlsx' '$output'

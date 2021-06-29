@@ -1,11 +1,13 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use File::Path qw(make_path remove_tree);
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(parameters stderr);
+use LsmboRest qw(getQuickGOVersion REST_GET REST_GET_Uniprot);
+
+use File::Path qw(make_path remove_tree);
 
 # my ($taxonomyId, $source, $outputFile) = @ARGV;
 my ($paramFile, $outputFile) = @ARGV;
@@ -199,7 +201,7 @@ sub getUniprotData {
     my $url = "https://www.uniprot.org/uniprot/?query=";
     $url .= "reviewed:yes%20" if($source ne "un");
     $url .= "taxonomy:$taxonomyId&format=tab&";
-    # $url .= "limit=10&"; # TODO just for testing
+    # $url .= "limit=10&"; # uncomment this line to test things
     $url .= "columns=id,entry%20name,genes(PREFERRED),database(GeneID),database(KEGG),go(biological%20process),go(cellular%20component),go(molecular%20function),go-id";
     # sample: https://www.uniprot.org/uniprot/?query=reviewed:yes%20taxonomy:9606&format=tab&limit=10&columns=id,entry%20name,protein%20names,genes,organism,go(biological%20process),go(cellular%20component),go(molecular%20function),go-id,genes(PREFERRED)
 
@@ -278,7 +280,7 @@ sub getKeggPathways {
             $KEGG_NAMES{$1} = $2;
         }
     } else {
-        die(__FILE__.":".__LINE__.": HTTP GET error code:".$response->code." with message: ".$response->message);
+        stderr(__FILE__.":".__LINE__.": HTTP GET error code:".$response->code." with message: ".$response->message);
     }
 }
 
@@ -306,7 +308,7 @@ sub linkKeggPathways {
             push(@{$KEGG_LINKS{"$1$2"}}, $3);
         }
     } else {
-        die(__FILE__.":".__LINE__.": HTTP GET error code:".$response->code." with message: ".$response->message);
+        stderr(__FILE__.":".__LINE__.": HTTP GET error code:".$response->code." with message: ".$response->message);
     }
 }
 
@@ -314,7 +316,7 @@ sub createFile {
     my ($filePath) = @_;
     print "Create file $filePath\n";
     make_path(dirname($filePath));
-    open(my $out, ">$filePath") or die("Can't create file $filePath: $!");
+    open(my $out, ">$filePath") or stderr("Can't create file $filePath: $!");
     return $out;
 }
 

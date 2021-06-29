@@ -1,9 +1,13 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(parameters);
+use LsmboExcel qw(getColumnId getValue);
+
+use File::Copy;
 
 # List comparator
 # A: Protein column (one per line)

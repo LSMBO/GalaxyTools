@@ -1,4 +1,4 @@
-<tool id="tmt_basic_filters" name="TMT basic filters" version="1.0.0">
+<tool id="tmt_basic_filters" name="TMT basic filters" version="1.1.0">
     <description>Process Proteome Discoverer TMT analyses</description>
     <requirements>
     </requirements>

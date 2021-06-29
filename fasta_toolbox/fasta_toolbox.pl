@@ -2,14 +2,15 @@
 use strict;
 use warnings;
 
+use File::Basename;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(getDate parameters booleanToString stderr archive);
+use LsmboMPI;
+use LsmboRest qw(REST_GET_Uniprot);
+
 use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
 use Archive::Zip::MemberRead;
-use Parallel::Loops;
-use Sys::CpuAffinity;
-
-use File::Basename;
-use lib dirname(__FILE__)."/../";
-use LsmboFunctions;
+use Number::Bytes::Human qw(format_bytes);
 
 my ($paramFile, $outputFile, @mergingData) = @ARGV;
 
@@ -60,6 +61,8 @@ if($PARAMS{"toolbox"}{"action"} eq "generate") {
     }
 }
 
+die("Nothing to put in the fasta file !") if(scalar(@fastaFiles) == 0);
+
 # merge all files and remove duplicate sequences if requested
 my %proteins;
 my %sequences;
@@ -82,7 +85,7 @@ foreach my $fasta (@fastaFiles) {
         my $zip = Archive::Zip->new($fasta);
         $fh = Archive::Zip::MemberRead->new($zip, getFastaFileName($fasta));
     } else {
-        open($fh, "<", $fasta) or stderr("File $fasta could not be opened: $!", 1);
+        open($fh, "<", $fasta) or stderr("File $fasta could not be opened: $!");
     }
     while (defined(my $line = $fh->getline())) {
         chomp($line);
@@ -103,7 +106,7 @@ removeSubSequences() if($PARAMS{"options"}{"exclude"} =~ m/subSeq/);
 
 # write output file there
 print "Writing target proteins in the output file\n";
-open(my $fh, ">", $fastaFile) or stderr("Failed to create the fasta file: $!", 1);
+open(my $fh, ">", $fastaFile) or stderr("Failed to create the fasta file: $!");
 my $nbTarget = 0;
 my $nbConta = 0;
 foreach my $accession (sort(keys(%proteins))) {
@@ -177,7 +180,7 @@ sub getFastaFromUniprot {
     
     my ($message, $version) = REST_GET_Uniprot($url);
     my $tempFastaFile = "uniprot-request.fasta";
-    open(my $fh, ">", $tempFastaFile) or stderr("Failed to create output file: $!", 1);
+    open(my $fh, ">", $tempFastaFile) or stderr("Failed to create output file: $!");
     print $fh  $message;
     close $fh;
     return ($tempFastaFile, $version);
@@ -250,68 +253,79 @@ sub formatAccession {
     # print "$nb sub sequences have been found in the $total protein sequences\n";
 # }
 
-sub getNbCpu {
-    my $nb = Sys::CpuAffinity::getNumCpus();
-    # only use 1 cpu if there is 1 or 2 cpu (or if the number could not be obtained)
-    return 1 if(!$nb || $nb <= 2);
-    # use 3/4 of the cpu otherwise
-    return int($nb * 0.75);
-    
-}
+# sub getNbCpu {
+    # my $nb = Sys::CpuAffinity::getNumCpus();
+    # # only use 1 cpu if there is 1 or 2 cpu (or if the number could not be obtained)
+    # return 1 if(!$nb || $nb <= 2);
+    # # use 3/4 of the cpu otherwise
+    # return int($nb * 0.75);
+# }
 
 # If we assume there is very little subsequences, then we may not need to care about 
 # removing subsequences to avoid checking them twice.
 # A multithreaded approach could be to compare sequence i in [1..nbCPU] to all the others,
 # and then moving to i+nbCPU, until the end of the list.
 # This should reduce the complexity to N/nbCPU, even if the total number of comparisons get higher
+# sub removeSubSequences {
+    # my $nbCPU = getNbCpu();
+    # print "Searching for sub sequences, using $nbCPU CPUs...\n";
+    # # sort the sequences shorter to longer
+    # my @sortedSequences = sort { length $a <=> length $b } keys(%sequences);
+    # my $total = scalar(@sortedSequences);
+    # # prepare the parallelisation
+    # my %returnValues;
+    # my $pl = Parallel::Loops->new($nbCPU);
+    # $pl->share(\@sortedSequences, \%returnValues);
+    # # start multithreading
+    # $pl->foreach([1 .. $nbCPU], sub {
+        # my $n = $_;
+        # for(my $i = $n - 1; $i < $total; $i += $nbCPU) {
+            # my $shorterSequence = $sortedSequences[$i];
+            # my $isSub = 0;
+            # my $j = $i + 1;
+            # while($isSub == 0 && $j < $total) {
+                # # no need to compare this sequence to others
+                # if(index($sortedSequences[$j++], $shorterSequence) != -1) {
+                    # push(@{$returnValues{$n}{"subseq"}}, $shorterSequence);
+                    # $isSub = 1;
+                # }
+            # }
+        # }
+    # });
+    # # gather all the sub-sequences
+    # my @subSequences;
+    # for(1..$nbCPU) {
+        # my @subs = @{$returnValues{$_}{"subseq"}};
+        # push(@subSequences, @subs);
+    # }
+    # # remove the sub-sequences
+    # my $nbSubSequences = 0;
+    # foreach(sort(uniq(@subSequences))) {
+        # my $accession = $sequences{$_};
+        # $proteins{$accession} = "";
+        # print STDOUT formatAccession($accession)." is a sub-sequence\n";
+        # push(@removedProteinsBecauseSubSequence, formatAccession($accession, 0));
+        # $nbSubSequences++;
+    # }
+    # print STDOUT "$nbSubSequences sub sequences have been found in the $total protein sequences\n";
+# }
+
 sub removeSubSequences {
-    my $nbCPU = getNbCpu();
-    print "Searching for sub sequences, using $nbCPU CPUs...\n";
-    # sort the sequences shorter to longer
-    my @sortedSequences = sort { length $a <=> length $b } keys(%sequences);
-    my $total = scalar(@sortedSequences);
-    # prepare the parallelisation
-    my %returnValues;
-    my $pl = Parallel::Loops->new($nbCPU);
-    $pl->share(\@sortedSequences, \%returnValues);
-    # start multithreading
-    $pl->foreach([1 .. $nbCPU], sub {
-        my $n = $_;
-        for(my $i = $n - 1; $i < $total; $i += $nbCPU) {
-            my $shorterSequence = $sortedSequences[$i];
-            my $isSub = 0;
-            my $j = $i + 1;
-            while($isSub == 0 && $j < $total) {
-                # no need to compare this sequence to others
-                if(index($sortedSequences[$j++], $shorterSequence) != -1) {
-                    push(@{$returnValues{$n}{"subseq"}}, $shorterSequence);
-                    $isSub = 1;
-                }
-            }
-        }
-    });
-    # gather all the sub-sequences
-    my @subSequences;
-    for(1..$nbCPU) {
-        my @subs = @{$returnValues{$_}{"subseq"}};
-        push(@subSequences, @subs);
-    }
-    # remove the sub-sequences
-    my $nbSubSequences = 0;
-    foreach(sort(uniq(@subSequences))) {
+    my @sequences = keys(%sequences);
+    my @subSequences = LsmboMPI::removeSubSequencesMT(\@sequences);
+    # remove the sub-sequences from the full list
+    foreach(@subSequences) {
         my $accession = $sequences{$_};
         $proteins{$accession} = "";
         print STDOUT formatAccession($accession)." is a sub-sequence\n";
         push(@removedProteinsBecauseSubSequence, formatAccession($accession, 0));
-        $nbSubSequences++;
     }
-    print STDOUT "$nbSubSequences sub sequences have been found in the $total protein sequences\n";
 }
 
 sub getFastaFileName {
     my ($zipFile) = @_;
     my $zip = Archive::Zip->new();
-    stderr("read error", 1) unless ( $zip->read($zipFile) == AZ_OK );
+    stderr("read error") unless ( $zip->read($zipFile) == AZ_OK );
     foreach my $item($zip->members()) {
         my $file = $item->{"fileName"};
         return $file if($file =~ m/\.fasta$/);
@@ -326,7 +340,7 @@ sub createMetadataFile {
     $metadataFile =~ s/\.fasta$/_metadata.txt/;
     my $n = "\r\n";
     
-    open(my $fh, ">", $metadataFile) or stderr("Can't create the metadata file: $!", 1);
+    open(my $fh, ">", $metadataFile) or stderr("Can't create the metadata file: $!");
     print $fh "Date of generation: ".getDate("%d %B %Y %H:%M:%S (%Z)")."$n";
     print $fh "Uniprot release: $uniprotVersion$n";
     print $fh "$n";

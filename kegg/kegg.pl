@@ -2,16 +2,21 @@
 use strict;
 use warnings;
 
-use DBI;
-use Image::Size;
-use MIME::Base64 qw(encode_base64);
-use Scalar::Util qw(looks_like_number);
-use SVG;
 use XML::Simple;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(archive getDate parameters stderr);
+use LsmboExcel qw(getValue setColumnsWidth writeExcelLine writeExcelLineF);
+use LsmboRest qw(REST_GET);
+
+use DBI;
+use File::Copy;
+use Image::Size;
+use List::MoreUtils qw(uniq);
+use MIME::Base64 qw(encode_base64);
+use Scalar::Util qw(looks_like_number);
+use SVG;
 
 # $inputFile must contain protein accession numbers, p-value, fc, tukey
 # $anova, $fc, $tukey are threshold values
@@ -57,7 +62,7 @@ my $taxonomy = "";
 if($PARAMS{"type"} eq "uniprot") {
   # detect the taxonomy based on the first protein ID
   $taxonomy = detectTaxonomy();
-  stderr("Unable to determine taxonomy from the protein IDs", 1) if($taxonomy eq "");
+  stderr("Unable to determine taxonomy from the protein IDs") if($taxonomy eq "");
   print "Taxonomy is '$taxonomy'\n";
   # create the database
   setupDatabase($taxonomy);
@@ -109,7 +114,7 @@ sub extractData {
     # open the excel file
     my $parser = Spreadsheet::ParseXLSX->new;
     my $workbook = $parser->parse($inputFile);
-    stderr($parser->error()."\n", 1) if(!defined $workbook);
+    stderr($parser->error()."\n") if(!defined $workbook);
     
     my @worksheets = $workbook->worksheets;
     my $worksheet = $worksheets[0];
@@ -157,7 +162,7 @@ sub setupDatabase {
     print "Prepare SQLite database\n";
     my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
         AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr, 1);
+    }) or stderr($DBI::errstr);
     doAndCommit($dbh, qq(CREATE TABLE taxonomy (taxonomy TEXT NOT NULL);));
     doAndCommit($dbh, qq(CREATE TABLE uphsa (protein TEXT NOT NULL, hsa TEXT NOT NULL);));
     doAndCommit($dbh, qq(CREATE TABLE hsapath (hsa TEXT NOT NULL, path TEXT NOT NULL);));
@@ -200,7 +205,7 @@ sub setupDatabaseCpd {
     print "Prepare SQLite database\n";
     my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
         AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr, 1);
+    }) or stderr($DBI::errstr);
     doAndCommit($dbh, qq(CREATE TABLE cpdpath (cpd TEXT NOT NULL, path TEXT NOT NULL);));
     
     # get pathways per compound
@@ -235,7 +240,7 @@ sub importData {
     # connection
     my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
         AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr, 1);
+    }) or stderr($DBI::errstr);
     # doAndCommit($dbh, qq(CREATE TABLE acc (protein TEXT PRIMARY KEY, color TEXT NOT NULL);));
     if($PARAMS{"type"} eq "uniprot") {
       doAndCommit($dbh, qq(CREATE TABLE acc (protein TEXT PRIMARY KEY, color TEXT NOT NULL);));
@@ -305,7 +310,7 @@ sub getMaps {
     # connection
     my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
         AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr, 1);
+    }) or stderr($DBI::errstr);
     
     my @maps;
     if($PARAMS{"type"} eq "uniprot") {
@@ -379,7 +384,7 @@ sub updateMaps {
         foreach my $id (keys(%$entry)) {
             delete $entry->{$id} if($entry->{$id}{type} ne "gene");
         };
-        open (my $fh, ">", "$DIR_XML/$taxonomy$map.xml") or stderr("Can't open file '$DIR_XML/$taxonomy$map.xml': $!", 1);
+        open (my $fh, ">", "$DIR_XML/$taxonomy$map.xml") or stderr("Can't open file '$DIR_XML/$taxonomy$map.xml': $!");
         print $fh $xs->XMLout($ref);
         close $fh;
         sleep 10;
@@ -406,7 +411,7 @@ sub updateMapsCpd {
         restGetToFile("http://rest.kegg.jp/get/map$map/conf", "$DIR_CONF/$map.conf");
         # extract compounds from conf file
         my @compounds;
-        open(my $fh, "<", "$DIR_CONF/$map.conf") or stderr("Can't open file '$DIR_CONF/$map.conf': $!", 1);
+        open(my $fh, "<", "$DIR_CONF/$map.conf") or stderr("Can't open file '$DIR_CONF/$map.conf': $!");
         while(<$fh>) {
             chomp;		
             my @line = split(/\t/);
@@ -448,7 +453,7 @@ sub updateMapsCpd {
 
 sub restGetToFile {
     my ($url, $outputFile) = @_;
-    open (my $fh, ">", "$outputFile") or stderr("Can't create file '$outputFile': $!", 1);
+    open (my $fh, ">", "$outputFile") or stderr("Can't create file '$outputFile': $!");
     print $fh REST_GET($url);
     close $fh;
 }
@@ -457,7 +462,7 @@ sub cleanMaps {
     my ($taxonomy, @maps) = @_;
 
     # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr, 1);
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr);
     
     # Remove proteins not use in map file
     my $xs = new XML::Simple(keeproot => 1, searchpath => ".", forcearray => ['id'], KeyAttr => {entry =>"id"});
@@ -487,7 +492,7 @@ sub cleanMaps {
             delete $entry->{$id} if (!$flag);
         }
         my $xml = $xs->XMLout($ref);
-        open (my $fh, ">", "$DIR_DRAW/draw$map.xml") or stderr("Can't write file '$DIR_DRAW/draw$map.xml': $!", 1);
+        open (my $fh, ">", "$DIR_DRAW/draw$map.xml") or stderr("Can't write file '$DIR_DRAW/draw$map.xml': $!");
         print $fh $xml;
         close $fh;
     }
@@ -500,7 +505,7 @@ sub prepareDrawing {
     my ($taxonomy) = @_;
 
     # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr, 1);
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr);
 
     # prepare XML reader
     my $xs = new XML::Simple(keeproot => 1, searchpath => ".", forcearray => ['id'], KeyAttr => {entry =>"id"});
@@ -541,7 +546,7 @@ sub prepareDrawing {
             };				
             
         };
-        open (my $fh, ">", $map) or stderr("Can't open file '$map': $!", 1);
+        open (my $fh, ">", $map) or stderr("Can't open file '$map': $!");
         print $fh $xs->XMLout($ref);
         close $fh;
         $sth->finish;
@@ -586,6 +591,8 @@ sub createSvgFiles {
     # treat each map
     foreach my $map (glob("$DIR_DRAW/*.xml")) {
         my ($num) = $map =~ /(\d+)/;
+        # sometimes the png file is somehow incomplete and Windows says it cannot read it
+        # the svg file can still be generated with most information, but the borders are not right
         my $png = "$DIR_MAP/$num.png";
         my ($width, $height) = imgsize($png);
         $width = 0 unless(looks_like_number($width));
@@ -619,14 +626,14 @@ sub createSvgFiles {
                 }
             }		
         };
-        open (my $fh, ">", "$DIR_SVG/$num.svg") or stderr("Can't create file '$DIR_SVG/$num.svg': $!", 1);
+        open (my $fh, ">", "$DIR_SVG/$num.svg") or stderr("Can't create file '$DIR_SVG/$num.svg': $!");
         print $fh $svg->xmlify;
         close $fh;
     }
 }
 
 sub getBase64 {
-    open (my $fh, "<", $_[0]) or stderr("$!", 1);
+    open (my $fh, "<", $_[0]) or stderr("$!");
     binmode($fh);
     local $/;
     my $file_contents = <$fh>;
@@ -751,7 +758,7 @@ sub writeExcelOutput {
 
     print "Writing final Excel file\n";
     # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr, 1);
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr);
     # create file
     my $workbook = Excel::Writer::XLSX->new($outputFile);
     
@@ -864,7 +871,7 @@ sub writeExcelOutput {
 
 sub extractInfo {
     my ($file) = @_;
-    open(my $fh, "<", $file) or stderr("Can't open file '$file': $!", 1);
+    open(my $fh, "<", $file) or stderr("Can't open file '$file': $!");
     my $name = "";
     my $class = "";
     while(<$fh>) {

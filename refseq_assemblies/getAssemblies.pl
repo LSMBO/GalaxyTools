@@ -3,8 +3,11 @@ use strict;
 use warnings;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(getDate getSetting stderr);
+use LsmboRest qw(REST_GET);
+
+use File::Copy;
 use Mail::Sendmail;
 
 my $dlFile = "assembly_summary_refseq.txt";
@@ -25,7 +28,7 @@ eval {
   # parse the file and store the keys in a hash to avoid duplicates (there should be none but still)
   # also write a tsv file to store the ftp link matching the keys (makes the xml file smaller and faster to load)
   _log("Creating file refseq_ref.txt");
-  open(my $fh, ">", "$tsvFile.tmp") or stderr("Can't open file '$tsvFile.tmp': $!", 1);
+  open(my $fh, ">", "$tsvFile.tmp") or stderr("Can't open file '$tsvFile.tmp': $!");
   my $nb = 0;
   my %names;
   foreach my $row (split("\n", $data)) {
@@ -55,7 +58,7 @@ eval {
   # we want it as light as possible to make the loading of the page faster
   # but there's a lot of taxonomies and it's xml !
   _log("Creating file refseq_macro.xml");
-  open($fh, ">", "$xmlFile.tmp") or stderr("Can't open file '$xmlFile.tmp': $!", 1);
+  open($fh, ">", "$xmlFile.tmp") or stderr("Can't open file '$xmlFile.tmp': $!");
 
   print $fh "<macros>\n";
   print $fh "    <xml name='refseq_assemblies'>\n";
@@ -88,7 +91,7 @@ if($@) {
   my $email = getSetting("admin_email");
   my $message = "$LOG\n$@";
   my %mail = (To => $email, From => $email, Subject => "[$instance] RefSeq Assemblies update failure", Message => $message);
-  sendmail(%mail) or stderr($Mail::Sendmail::error, 1);
+  sendmail(%mail) or stderr($Mail::Sendmail::error);
 }
 
 exit;

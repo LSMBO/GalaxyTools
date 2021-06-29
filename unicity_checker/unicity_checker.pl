@@ -3,8 +3,11 @@ use strict;
 use warnings;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(extractListEntries parameters stderr);
+use LsmboExcel qw(extractIds writeExcelLine writeExcelLineF);
+
+use File::Copy;
 
 my ($paramFile, $outputFile) = @ARGV;
 
@@ -28,7 +31,7 @@ if($PARAMS{"peptides"}{"source"} eq "list") {
     # copy the excel file locally, otherwise it's not readable (i guess the library does not like files without the proper extension)
     copy($PARAMS{"peptides"}{"excelFile"}, $inputCopy);
     # open the output file
-    open(my $fh, ">", "$inputFile") or stderr("Can't write to file '$inputFile': $!", 1);
+    open(my $fh, ">", "$inputFile") or stderr("Can't write to file '$inputFile': $!");
     my @ids = extractIds($inputCopy, $PARAMS{"peptides"}{"sheetNumber"}, $PARAMS{"peptides"}{"cellAddress"});
     foreach my $id (@ids) {
         print $fh "$id\n";
@@ -40,7 +43,7 @@ if($PARAMS{"peptides"}{"source"} eq "list") {
 my %sequences;
 my %descriptions;
 my $fastaFile = $PARAMS{"fasta"};
-open(my $fh, "<", $fastaFile) or stderr("Can't read Fasta file $fastaFile: $!", 1);
+open(my $fh, "<", $fastaFile) or stderr("Can't read Fasta file $fastaFile: $!");
 my $accession = "";
 while(<$fh>) {
     s/\r?\n$//;
@@ -74,7 +77,7 @@ writeExcelLineF($worksheet, 0, $format, "Peptides", "Nb protein matches", "Prote
 
 # check each peptide
 my $line = 1;
-open($fh, "<", "$inputFile") or stderr("Can't read file '$inputFile': $!", 1);
+open($fh, "<", "$inputFile") or stderr("Can't read file '$inputFile': $!");
 while(<$fh>) {
     chomp;
     if($_ ne "") {
@@ -86,7 +89,7 @@ while(<$fh>) {
 }
 close $fh;
 $workbook->close();
-unlink($inputFile) if($PARAMS{"proteins"}{"source"} ne "file");
+unlink($inputFile) if($PARAMS{"peptides"}{"source"} ne "file");
 unlink($inputCopy) if($PARAMS{"peptides"}{"source"} eq "xlsx");
 
 print "Correct ending of the script\n";

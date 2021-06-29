@@ -3,8 +3,10 @@ use strict;
 use warnings;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use File::Copy;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(getDate getSetting stderr);
+use LsmboRest qw(REST_GET REST_POST_Uniprot_fasta);
 use Mail::Sendmail;
 
 my $crapFile = "cRAP.fasta";
@@ -22,7 +24,7 @@ eval {
   # parse data to list all the protein ids
   my @rows = split("\n", $data);
   my $nbIds = 0;
-  open(my $fh, ">", $crapIds) or stderr("Can't create file '$crapIds': $!", 1);
+  open(my $fh, ">", $crapIds) or stderr("Can't create file '$crapIds': $!");
   foreach my $row (@rows) {
     if($row =~ m/^>(.*)/) {
       my $id = $1;
@@ -43,8 +45,8 @@ eval {
   unlink($crapIds);
 
   # adding CON tags to the identifiers
-  open(my $out, ">", "$crapFile.con") or stderr("Can't create file '$crapFile.con': $!", 1);
-  open($fh, "<", "$crapFile.tmp") or stderr("Can't open file '$crapFile.tmp': $!", 1);
+  open(my $out, ">", "$crapFile.con") or stderr("Can't create file '$crapFile.con': $!");
+  open($fh, "<", "$crapFile.tmp") or stderr("Can't open file '$crapFile.tmp': $!");
   my $nbContaminants = 0;
   while(<$fh>) {
     if(m/^>(.*)/) {
@@ -59,14 +61,10 @@ eval {
   unlink("$crapFile.tmp");
 
   _log("$nbContaminants are in the new cRAP file");
-  stderr("No contaminants written in the end file", 1) if($nbContaminants == 0);
+  stderr("No contaminants written in the end file") if($nbContaminants == 0);
 
-  # TODO write a macro xml file to add proper information on the galaxy xml file, such as:
-  # - the date of the update
-  # - the uniprot release
-  # - the number of proteins
-  # - the link to the fasta file
-  open($out, ">", "$macroFile.tmp") or stderr("Can't create file '$macroFile.tmp': $!", 1);
+  # write a macro xml file to add proper information on the galaxy xml file (date of the update, number of proteins)
+  open($out, ">", "$macroFile.tmp") or stderr("Can't create file '$macroFile.tmp': $!");
   print $out "<macros>\n";
   print $out "    <xml name='crap'>\n";
   print $out "        <param name='contaminants' type='boolean' checked='yes' label='Include contaminant proteins' help='$nbContaminants contaminant proteins, updated on ".getDate("%B %d %Y")."' />\n";
@@ -82,7 +80,7 @@ if($@ || !-f "$crapFile.con") {
   my $email = getSetting("admin_email");
   my $message = "$LOG\n$@";
   my %mail = (To => $email, From => $email, Subject => "[$instance] Fasta Toolbox cRAP update failure", Message => $message);
-  sendmail(%mail) or stderr($Mail::Sendmail::error, 1);
+  sendmail(%mail) or stderr($Mail::Sendmail::error);
   # keep using the previous file
 } else {
   # otherwise, replace the file but keep the previous one

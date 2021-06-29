@@ -1,4 +1,4 @@
-<tool id="proteinlist_comparator" name="Protein list comparator" version="1.0.0">
+<tool id="proteinlist_comparator" name="Protein list comparator" version="1.1.0">
     <description>Transforms an Excel table to compare protein's information per sample</description>
     <requirements>
     </requirements>

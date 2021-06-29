@@ -1,9 +1,12 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(stderr);
+
+use File::Copy;
 
 my ($outputFile, @inputFiles) = @ARGV;
 
@@ -12,13 +15,13 @@ my $tempFile = "temp.mgf";
 
 #print Dumper(\@inputFiles);
 
-open(my $out, ">", "$tempFile") or stderr("Can't create file $tempFile: $!", 1);
+open(my $out, ">", "$tempFile") or stderr("Can't create file $tempFile: $!");
 while(scalar(@inputFiles) > 0) {
     my $file = shift(@inputFiles); # this file is anonymized
     my $filename = shift(@inputFiles); # original file name
     $filename =~ s/.*\///; # remove eventual pathes in file name
     print "Reading file $filename\n";
-    open(my $fh, "<", $file) or stderr("Can't open file $filename: $!", 1);
+    open(my $fh, "<", $file) or stderr("Can't open file $filename: $!");
     my $write = 0;
     my $nbSpectra = 0;
     while(<$fh>) {

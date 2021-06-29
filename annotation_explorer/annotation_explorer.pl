@@ -2,15 +2,16 @@
 use strict;
 use warnings;
 
-#use Excel::Writer::XLSX;
-#use File::Copy;
-use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
-use Spreadsheet::Reader::ExcelXML;
 use URI::Escape;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(getLinesPerIds parameters randomSubset stderr);
+use LsmboExcel qw(getValue setColumnsWidth writeExcelLine writeExcelLineF);
+use LsmboRest qw(getQuickGOVersion REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
+
+use JSON::XS qw(encode_json decode_json);
+use Spreadsheet::Reader::ExcelXML;
 
 my ($paramFile, $outputFile) = @ARGV;
 
@@ -85,7 +86,7 @@ sub loadCategories {
         # read the category file
         my $parser   = Spreadsheet::Reader::ExcelXML->new();
         my $workbook = $parser->parse($categoryFile);
-        stderr($parser->error(), 1) if(!defined $workbook);
+        stderr($parser->error()) if(!defined $workbook);
         my @worksheets = $workbook->worksheets;
         my $worksheet = $worksheets[0];
         my ($row_min, $row_max) = $worksheet->row_range();
@@ -117,7 +118,7 @@ sub prepareInputFile {
         copy($PARAMS{"proteins"}{"excelFile"}, $inputCopy);
         # open the output file
         #open(OUT, ">$inputFile") or stderr("Can't write to file '$inputFile'", 1);
-        open(my $fh, ">", $inputFile) or stderr("Can't write to file '$inputFile': $!", 1);
+        open(my $fh, ">", $inputFile) or stderr("Can't write to file '$inputFile': $!");
         my @ids = extractIds($inputCopy, $PARAMS{"proteins"}{"sheetNumber"}, $PARAMS{"proteins"}{"cellAddress"}, $inputFile);
         foreach my $id (@ids) {
             #print OUT "$id\n";

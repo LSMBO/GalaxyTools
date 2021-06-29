@@ -2,11 +2,13 @@
 use strict;
 use warnings;
 
-use Statistics::Basic qw(median);
-
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(parameters stderr);
+use LsmboExcel qw(addWorksheet getValue);
+
+use List::MoreUtils qw(uniq);
+use Statistics::Basic qw(median);
 
 my ($paramFile, $outputFile) = @ARGV;
 
@@ -91,7 +93,7 @@ sub readInputFile {
   print "Reading input file\n";
   my $parser = Spreadsheet::ParseXLSX->new;
   my $workbook = $parser->parse($inputFile);
-  stderr($parser->error(), 1) if(!defined $workbook);
+  stderr($parser->error()) if(!defined $workbook);
   # open first sheet
   my @worksheets = $workbook->worksheets();
   my $sheet = $worksheets[0];

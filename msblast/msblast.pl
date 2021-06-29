@@ -3,8 +3,12 @@ use strict;
 use warnings;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(extractListEntriesInArray getDate parameters stderr);
+use LsmboExcel qw(extractIds writeExcelLine);
+use LsmboMPI qw(getNbCpu);
+
+use File::Copy;
 
 # input data:
 # - a text file with a list of peptides (one per line)
@@ -14,11 +18,11 @@ my ($paramFile, $fastaFileName, $outputFile) = @ARGV;
 
 # global variables
 my %PARAMS = %{parameters($paramFile)};
-my $version = "ncbi-blast-2.11.0+";
+my $ncbiVersion = "ncbi-blast-2.11.0+";
 my $maxUniquePeptide = 50;
 my $scoreTable = 100;
 my $dirname = dirname(__FILE__);
-my $ncbi_path = "$dirname/$version/bin";
+my $ncbi_path = "$dirname/$ncbiVersion/bin";
 
 # step 1: create an adapted peptide file
 my @peptides;
@@ -28,7 +32,7 @@ if($PARAMS{"peptides"}{"source"} eq "list") {
     @peptides = extractListEntriesInArray($PARAMS{"peptides"}{"peptideList"});
 } elsif($PARAMS{"peptides"}{"source"} eq "file") {
     # if it's a text file, read its entries
-    open(my $fh, "<", $PARAMS{"peptides"}{"peptideFile"}) or stderr("Can't open input file: $!", 1);
+    open(my $fh, "<", $PARAMS{"peptides"}{"peptideFile"}) or stderr("Can't open input file: $!");
     while(<$fh>) {
       chomp;
       push(@peptides, $_);
@@ -43,7 +47,7 @@ if($PARAMS{"peptides"}{"source"} eq "list") {
 
 # write the peptides in a file with the proper format for msblast
 my $inputFile = "peptides.tmp";
-open(my $fh, ">", "$inputFile") or stderr("Can't create $inputFile: $!", 1);
+open(my $fh, ">", "$inputFile") or stderr("Can't create $inputFile: $!");
 print $fh ">msblast\t".scalar(@peptides)." peptides\n";
 print $fh join(" ", @peptides);
 close $fh;
@@ -62,25 +66,26 @@ print("Preparing fasta file for Blast\n");
 my $fastaFile = $fastaFileName;
 copy($PARAMS{"fastaFile"}, $fastaFile);
 run("$ncbi_path/makeblastdb -dbtype prot -in $fastaFile");
-stderr("Error $?", 1) unless $? == 0;
+stderr("Error $?") unless $? == 0;
 
 
 
 # step 3: running blast
-print("Running blastp on fasta file\n");
+my $nbCpu = getNbCpu(0.5); # use half the cpu for blastp
+print("Running blastp on fasta file [nb threads: $nbCpu]\n");
 my $blpFile = "$fastaFile.blp";
-run("$ncbi_path/blastp -db $fastaFile -query $inputFile -evalue=100 -num_descriptions 50000 -num_alignments 50000 -comp_based_stats F -ungapped -matrix PAM30 -max_hsps 100 -sorthsps 1 -out $blpFile");
-stderr("Error $?", 1) unless $? == 0;
+run("$ncbi_path/blastp -db $fastaFile -query $inputFile -evalue=100 -num_descriptions 50000 -num_alignments 50000 -comp_based_stats F -ungapped -matrix PAM30 -max_hsps 100 -sorthsps 1 -num_threads $nbCpu -out $blpFile");
+stderr("Error $?") unless $? == 0;
 
 
 
-# step 4: atribute a confidence level to the proteins (positive, borderline, negative)
+# step 4: attribute a confidence level to the proteins (positive, borderline, negative)
 # get the proper score references based on the number of peptides (see msparse.conf with scoretable 100)
 # read the blp file and create ab array with all peptide scores combined (score 1, score 1+2, score 1+2+3, etc)
 # compare the scores from the blp file to the scores of the score table (see msparse.pl lines 254 to 277)
 print("Extracting Blastp output\n");
 my %proteins;
-open($fh, "<", "$blpFile") || stderr("Failed to open $blpFile: $!", 1);
+open($fh, "<", "$blpFile") || stderr("Failed to open $blpFile: $!");
 my $version = <$fh>;
 $version = choomp($version);
 do {} until (<$fh> =~ /^Sequences producing significant alignments/);
@@ -168,7 +173,8 @@ my $line = 0;
 
 # write metadata first
 writeExcelLine($sheetBlast, $line++, "Version", $version);
-writeExcelLine($sheetBlast, $line++, "Date", strftime("%Y/%m/%d", localtime));
+# writeExcelLine($sheetBlast, $line++, "Date", strftime("%Y/%m/%d", localtime));
+writeExcelLine($sheetBlast, $line++, "Date", getDate("%Y/%m/%d"));
 $fastaFile =~ s/.*\///; # only keep file name
 writeExcelLine($sheetBlast, $line++, "Database", $fastaFile);
 writeExcelLine($sheetBlast, $line++, "Nb queries", scalar(@peptides));
@@ -299,7 +305,7 @@ sub getMsParseConf {
 	my $mykey = $pvalue."pep";
 	
 	
-	open(my $fh, "<", "$dirname/msparse.conf") or stderr("Can't open msparse.conf file: $!", 1);
+	open(my $fh, "<", "$dirname/msparse.conf") or stderr("Can't open msparse.conf file: $!");
 	while (!eof($fh)){
 		# Read a line off the file
 		$_ = <$fh>;

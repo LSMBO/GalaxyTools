@@ -3,8 +3,14 @@ use strict;
 use warnings;
 
 use File::Basename;
-use lib dirname(__FILE__)."/..";
-use LsmboFunctions;
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(booleanToString checkUniprotFrom decompressGunzip extractListEntries getLinesPerIds parameters stderr);
+use LsmboExcel qw(extractIds setColumnsWidth writeExcelLine writeExcelLineF);
+use LsmboNcbi qw(entrezFetch getNcbiRelease);
+use LsmboRest qw(downloadFile REST_POST_Uniprot_tab UNIPROT_RELEASE);
+
+use File::Copy;
+use List::MoreUtils qw(uniq);
 
 my ($paramFile, $outputFile) = @ARGV;
 
@@ -22,9 +28,11 @@ if($addOrthoDb eq "true") {
   # eventually get the file name from https://v101.orthodb.org/download/README.txt in case it has changed
   my $file = "odb10v1_OGs.tab";
   print "Downloading OrthoDB file '$file'\n";
-  system("wget https://v101.orthodb.org/download/$file.gz");
-  system("gunzip $file.gz");
-  open(my $fh, "<", "$file") or stderr("Can't open OrthoDB file '$file': $!", 1);
+  # system("wget https://v101.orthodb.org/download/$file.gz");
+  downloadFile("https://v101.orthodb.org/download/$file.gz");
+  # system("gunzip $file.gz");
+  decompressGunzip("$file.gz");
+  open(my $fh, "<", "$file") or stderr("Can't open OrthoDB file '$file': $!");
   while(<$fh>) {
     chomp;
     my ($id, $level, $name) = split(/\t/);
@@ -32,14 +40,16 @@ if($addOrthoDb eq "true") {
   }
   close $fh;
   unlink ($file);
+  unlink ("$file.gz") if(-f "$file.gz");
 }
 # download and parse interpro file if requested
 my %interpro;
 if($addInterPro eq "true") {
   my $file = "entry.list";
   print "Downloading InterPro file '$file'\n";
-  system("wget ftp://ftp.ebi.ac.uk/pub/databases/interpro/$file");
-  open(my $fh, "<", "$file") or stderr("Can't open InterPro file '$file': $!", 1);
+  # system("wget ftp://ftp.ebi.ac.uk/pub/databases/interpro/$file");
+  downloadFile("ftp://ftp.ebi.ac.uk/pub/databases/interpro/$file");
+  open(my $fh, "<", "$file") or stderr("Can't open InterPro file '$file': $!");
   while(<$fh>) {
     chomp;
     my ($id, $type, $name) = split(/\t/);
@@ -63,7 +73,7 @@ if($PARAMS{"proteins"}{"source"} eq "list") {
     # copy the excel file locally, otherwise it's not readable (i guess the library does not like files without the proper extension)
     copy($PARAMS{"proteins"}{"excelFile"}, $inputCopy);
     # open the output file
-    open(my $fh, ">", "$inputFile") or stderr("Can't write to file '$inputFile'", 1);
+    open(my $fh, ">", "$inputFile") or stderr("Can't write to file '$inputFile'");
     my @ids = extractIds($inputCopy, $PARAMS{"proteins"}{"sheetNumber"}, $PARAMS{"proteins"}{"cellAddress"}, $inputFile);
     foreach my $id (@ids) {
         print $fh "$id\n";
@@ -94,7 +104,7 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     my @uniqIds = uniq(@ids);
     my $tempFile = "entrez.tmp";
     entrezFetch("protein", "gp", "xml", $tempFile, @uniqIds);
-    open(my $fh, "<", $tempFile) or stderr("Can't open Entrez output: $!", 1);
+    open(my $fh, "<", $tempFile) or stderr("Can't open Entrez output: $!");
     my @items;
     my $i = 0;
     while(<$fh>) {
