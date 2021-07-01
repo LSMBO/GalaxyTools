@@ -4,12 +4,14 @@ use warnings;
 
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
-use LsmboFunctions qw(archive booleanToString checkUniprotFrom extractListEntries getLinesPerIds parameters stderr);
+use LsmboFunctions qw(archive booleanToString checkUniprotFrom decompressZip extractListEntries getFileNameFromArchive getLinesPerIds parameters stderr);
 use LsmboExcel qw(extractIds writeExcelLine writeExcelLineF);
 use LsmboRest qw(REST_POST_Uniprot_fasta);
 use LsmboMPI;
 use LsmboNcbi qw(entrezFetch getNcbiRelease);
 
+use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
+use Archive::Zip::MemberRead;
 use Cwd 'abs_path';
 use List::MoreUtils qw(uniq);
 
@@ -29,6 +31,12 @@ my @fastaFiles = convertFasta();
 
 # prepare the library in fasta format
 my $fastaLibrary = $PARAMS{"fastaLibrary"};
+if(-B $fastaLibrary) {
+    # the library looks like a zipped file
+    my $fastaLibraryName = getFileNameFromArchive($fastaLibrary, "fasta");
+    decompressZip($fastaLibrary, $fastaLibraryName);
+    $fastaLibrary = $fastaLibraryName;
+}
 
 # before running fasta36, read the library to store the protein descriptions
 my %descriptions;
@@ -53,7 +61,7 @@ if(booleanToString($PARAMS{"keepLogFiles"}) eq "true" && scalar(@ARGV) >= 3) {
 }
 unlink(glob("*.log"));
 unlink($inputCopy) if($PARAMS{"proteins"}{"source"} eq "xlsx");
-
+unlink($fastaLibrary) if(-B $PARAMS{"fastaLibrary"});
 print "Correct ending of the script\n";
 
 exit;
@@ -106,9 +114,21 @@ sub convertFasta {
     foreach my $fasta (@fastaFiles) {
         my $id = "";
         my $content = "";
-        open(my $fh, "<", $fasta) or stderr("Can't open fasta file $fasta: $!");
-        while(<$fh>) {
-            if(m/^>([^\s]*)/) {
+        #open(my $fh, "<", $fasta) or stderr("Can't open fasta file $fasta: $!");
+        my $fh;
+        if(-B $fasta) {
+            # file is binary, and the only binary file type we allow in the xml file is zip
+            my $zip = Archive::Zip->new($fasta);
+            $fh = Archive::Zip::MemberRead->new($zip, getFileNameFromArchive($fasta, "fasta"));
+        } else {
+            # file is ASCII
+            open($fh, "<", $fasta) or stderr("Can't open fasta file $fasta: $!");
+        }
+        #while(<$fh>) {
+        #    if(m/^>([^\s]*)/) {
+        while (defined(my $line = $fh->getline())) {
+            $line .= "\n" if($line !~ m/\n$/);
+            if($line =~ m/^>([^\s]*)/) {
                 my $nextId = $1;
                 if($id ne "") {
                     push(@faFiles, createFa($id, $content));
@@ -116,10 +136,12 @@ sub convertFasta {
                 }
                 $id = $nextId;
             }
-            $content .= $_;
+            #$content .= $_;
+            $content .= $line;
         }
         push(@faFiles, createFa($id, $content)) if($id ne "");
-        close $fh;
+        #close $fh;
+        $fh->close();
     }
     
     # remove temporary files

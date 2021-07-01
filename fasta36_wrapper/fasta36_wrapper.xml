@@ -1,4 +1,4 @@
-<tool id="fasta36_wrapper" name="Fasta36 wrapper" version="1.2.0">
+<tool id="fasta36_wrapper" name="Fasta36 wrapper" version="1.3.0">
     <description>Protein sequence comparaison</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/fasta36_wrapper.pl '$inputs'
@@ -57,11 +57,11 @@
                 </param>
             </when>
             <when value="fasta">
-                <param format="fasta" name="fastaFile" type="data" label="Fasta input file" multiple="false"/>
+                <param format="fasta,zip" name="fastaFile" type="data" label="Fasta input file" multiple="false"/>
             </when>
         </conditional>
         
-        <param format="fasta" name="fastaLibrary" type="data" label="Fasta library" multiple="false" help="Each protein will be compared to the proteins in the library" />
+        <param format="fasta,zip" name="fastaLibrary" type="data" label="Fasta library" multiple="false" help="Each protein will be compared to the proteins in the library" />
         <param name="nb" type="integer"  size="4" value="1"  label="Number of Blast hits"/>
 
         <conditional name="output">

@@ -4,11 +4,14 @@ package LsmboFunctions;
 use strict;
 use warnings;
 
-use Archive::Zip;
+#use Archive::Zip;
+use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
+use Archive::Zip::MemberRead;
 # use Data::Dumper;
 use File::Basename qw(basename dirname);
 use File::Slurp qw(read_file write_file);
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+use IO::Uncompress::Unzip qw(unzip $UnzipError);
 use JSON::XS qw(encode_json decode_json);
 use List::MoreUtils qw(uniq);
 use List::Util qw(shuffle);
@@ -17,7 +20,7 @@ use POSIX qw(strftime);
 
 # only export these methods so they can be used without specifying the namespace
 use Exporter qw(import);
-our @EXPORT = qw(archive booleanToString checkUniprotFrom decompressGunzip extractListEntries extractListEntriesInArray getContactMailAddress getDate getLinesPerIds getSetting parameters randomSubset stderr stdwarn);
+our @EXPORT = qw(archive booleanToString checkUniprotFrom decompressGunzip decompressZip extractListEntries extractListEntriesInArray getContactMailAddress getDate getFileNameFromArchive getLinesPerIds getSetting parameters randomSubset stderr stdwarn);
 
 
 ###################
@@ -237,6 +240,24 @@ sub decompressGunzip {
   $file =~ s/.gz$//;
   gunzip $gzipFile => $file or stderr("gunzip failed: $GunzipError");
   return $file;
+}
+
+sub decompressZip {
+  my ($zipFile, @fileNames) = @_;
+  foreach(@fileNames) {
+    unzip $zipFile => $_, Name => "$_" or stderr("unzip failed: $UnzipError");
+  }
+}
+
+sub getFileNameFromArchive {
+  my ($zipFile, $desiredExt) = @_;
+  my $zip = Archive::Zip->new();
+  stderr("read error") unless ( $zip->read($zipFile) == AZ_OK );
+  foreach my $item($zip->members()) {
+    my $file = $item->{"fileName"};
+    return $file if($file =~ m/\.$desiredExt$/);
+  }
+  return "";
 }
 
 1;

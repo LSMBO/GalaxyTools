@@ -1,0 +1,12 @@
+{
+  "proteins": {
+    "fastaFile": "./test_fasta.zip",
+    "source": "fasta"
+  },
+  "fastaLibrary": "./test.zip",
+  "nb": 1,
+  "output": {
+    "format": "tsv"
+  },
+  "keepLogFiles": false
+}
