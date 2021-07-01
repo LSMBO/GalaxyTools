@@ -13,6 +13,7 @@ use LsmboNcbi qw(entrezFetch getNcbiRelease);
 use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
 use Archive::Zip::MemberRead;
 use Cwd 'abs_path';
+use File::Copy;
 use List::MoreUtils qw(uniq);
 
 my ($paramFile, $outputFile) = @ARGV;
