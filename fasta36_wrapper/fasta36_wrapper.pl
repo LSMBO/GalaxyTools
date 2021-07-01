@@ -4,12 +4,14 @@ use warnings;
 
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
-use LsmboFunctions qw(archive booleanToString extractListEntries parameters stderr);
+use LsmboFunctions qw(archive booleanToString checkUniprotFrom extractListEntries getLinesPerIds parameters stderr);
 use LsmboExcel qw(extractIds writeExcelLine writeExcelLineF);
 use LsmboRest qw(REST_POST_Uniprot_fasta);
 use LsmboMPI;
+use LsmboNcbi qw(entrezFetch getNcbiRelease);
 
 use Cwd 'abs_path';
+use List::MoreUtils qw(uniq);
 
 my ($paramFile, $outputFile) = @ARGV;
 
@@ -19,7 +21,7 @@ my $fasta36 = abs_path(dirname(__FILE__))."/$version/bin/fasta36";
 $fasta36 .= ".exe" if(!-f $fasta36 && -f "$fasta36.exe"); # windows only
 stderr("$fasta36 does not exist !") if(!-f $fasta36);
 my $inputCopy = "input.xlsx";
-my $uniprotVersion = "";
+my $databaseVersion = "";
 
 # get fasta version of each protein (use retrieveId service)
 my @fastaFiles = convertFasta();
@@ -82,9 +84,20 @@ sub convertFasta {
             }
             close $fh;
         }
-        # then call uniprot post -> fasta
-        my $version = REST_POST_Uniprot_fasta($inputFile, "ACC+ID", $fastaInput);
-        $uniprotVersion = "Uniprot release: $version";
+        if($PARAMS{"proteins"}{"from"} ne "NCBI") {
+            # call uniprot -> fasta
+            my $version = REST_POST_Uniprot_fasta($inputFile, checkUniprotFrom($PARAMS{"proteins"}{"from"}), $fastaInput);
+            $databaseVersion = "Uniprot release: $version";
+        } else {
+            # extract the NCBI ids
+            my ($ptrFullDataPerLine, $ptrLinesPerId) = getLinesPerIds($inputFile, 1);
+            my %linesPerId = %{$ptrLinesPerId};
+            my @ids = keys(%linesPerId);
+            my @uniqIds = uniq(@ids);
+            # call ncbi -> fasta
+            entrezFetch("protein", "fasta", "", $fastaInput, @uniqIds);
+            $databaseVersion = "NCBI protein database release: ".getNcbiRelease("protein");
+        }
         push(@fastaFiles, $fastaInput);
     }
     
@@ -150,7 +163,7 @@ sub writeExcelFile {
     my $rowNumber = 0;
     my $workbook;
     my $worksheet;
-    my @headers = ("Protein query", "Protein match", "Score", "Identity", "Similary", "Description", "", $uniprotVersion);
+    my @headers = ("Protein query", "Protein match", "Score", "Identity", "Similary", "Description", "", $databaseVersion);
     if($PARAMS{"output"}{"format"} eq "xlsx") {
         if($PARAMS{"proteins"}{"source"} ne "xlsx") {
             $workbook = Excel::Writer::XLSX->new($outputFile);

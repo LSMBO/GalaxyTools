@@ -1,0 +1,13 @@
+{
+  "proteins": {
+    "proteinList": "XP_007052861.2__cn__XP_007052873.1 XP_007054510.1__cn__XP_007052929.2,XP_037749968.1__cn__XP_007052995.1-XP_007055117.1__cn__",
+    "source": "list",
+    "from": "NCBI"
+  },
+  "fastaLibrary": "./test.fasta",
+  "nb": 1,
+  "output": {
+    "format": "tsv"
+  },
+  "keepLogFiles": true
+}

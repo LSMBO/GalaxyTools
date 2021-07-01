@@ -1,4 +1,4 @@
-<tool id="fasta36_wrapper" name="Fasta36" version="1.1.0">
+<tool id="fasta36_wrapper" name="Fasta36" version="1.2.0">
     <description>Protein sequence comparaison</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/fasta36_wrapper.pl '$inputs'
@@ -27,9 +27,21 @@
                 <param name="proteinList" label="Protein identifiers list" type="text" area="true">
                     <validator type="regex" message="The pipe character '|' is not allowed here">^[^\|]*$</validator>
                 </param>
+                <param name="from" type="select" label="Identifier type">
+                    <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                    <option value="GENENAME">Gene names</option>
+                    <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                    <option value="NCBI">NCBI or RefSeq accession</option>
+                </param>
             </when>
             <when value="file">
                 <param format="txt" name="proteinFile" type="data" label="Protein identifiers file" multiple="false"/>
+                <param name="from" type="select" label="Identifier type">
+                    <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                    <option value="GENENAME">Gene names</option>
+                    <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                    <option value="NCBI">NCBI or RefSeq accession</option>
+                </param>
             </when>
             <when value="xlsx">
                 <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" />
@@ -37,9 +49,15 @@
                 <param name="cellAddress" label="Address of the first protein identifier" type="text" value="A2">
                   <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
                 </param>
+                <param name="from" type="select" label="Identifier type">
+                    <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                    <option value="GENENAME">Gene names</option>
+                    <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                    <option value="NCBI">NCBI or RefSeq accession</option>
+                </param>
             </when>
             <when value="fasta">
-                <param format="fasta" name="fastaFile" type="data" label="Fasta file" multiple="false"/>
+                <param format="fasta" name="fastaFile" type="data" label="Fasta input file" multiple="false"/>
             </when>
         </conditional>
         
@@ -73,6 +91,7 @@
             <conditional name="proteins">
                 <param name="source" value="list" />
                 <param name="proteinList" value="P12345" />
+                <param name="from" value="ACC_ID" />
             </conditional>
             <param name="fastaLibrary" value="test/keratin.fasta" />
             <param name="nb" value="1" />

@@ -1,7 +1,8 @@
 {
   "proteins": {
     "proteinList": "I3MDI6__cn__A0A287D8D5__cn__A0A5E4B7R3__cn__A0A5E4BXZ3__cn__A0A287D5D3__cn__A0A5E4DBS8__cn__I3MYZ6__cn__A0A5E4B2V6__cn__I3MKC9__cn__A0A5E4BVD4__cn__I3LWH6__cn__A0A5E4BJX4__cn__I3LWI0__cn__A0A5E4BWA9__cn__A0A5E4C145__cn__A0A5E4A3A6__cn__A0A5E4AZT5__cn__A0A5E4ATQ0",
-    "source": "list"
+    "source": "list",
+    "from": "ACC_ID"
   },
   "fastaLibrary": "./test.fasta",
   "nb": 1,
