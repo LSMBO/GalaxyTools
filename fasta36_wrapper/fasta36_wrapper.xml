@@ -1,4 +1,4 @@
-<tool id="fasta36_wrapper" name="Fasta36" version="1.2.0">
+<tool id="fasta36_wrapper" name="Fasta36 wrapper" version="1.2.0">
     <description>Protein sequence comparaison</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/fasta36_wrapper.pl '$inputs'
