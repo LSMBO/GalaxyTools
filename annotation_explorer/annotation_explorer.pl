@@ -7,7 +7,7 @@ use URI::Escape;
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(extractListEntries getLinesPerIds parameters randomSubset stderr);
-use LsmboExcel qw(getValue setColumnsWidth writeExcelLine writeExcelLineF);
+use LsmboExcel qw(extractIds getValue setColumnsWidth writeExcelLine writeExcelLineF);
 use LsmboRest qw(getQuickGOVersion REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
 
 use File::Copy;
