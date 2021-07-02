@@ -1,4 +1,4 @@
-<tool id="annotation_explorer" name="Annotation Explorer" version="1.1.0">
+<tool id="annotation_explorer" name="Annotation Explorer" version="1.1.1">
     <description>Retrieve GO terms and ancestors list</description>
 1 1 <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/annotation_explorer.pl '$inputs' '$output'
