@@ -6,10 +6,11 @@ use URI::Escape;
 
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
-use LsmboFunctions qw(getLinesPerIds parameters randomSubset stderr);
+use LsmboFunctions qw(extractListEntries getLinesPerIds parameters randomSubset stderr);
 use LsmboExcel qw(getValue setColumnsWidth writeExcelLine writeExcelLineF);
 use LsmboRest qw(getQuickGOVersion REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
 
+use File::Copy;
 use JSON::XS qw(encode_json decode_json);
 use Spreadsheet::Reader::ExcelXML;
 
