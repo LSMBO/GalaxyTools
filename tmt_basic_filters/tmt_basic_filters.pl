@@ -55,7 +55,7 @@ my %F_PCT = (num_format => '0.00%');
 my %F_DEC = (num_format => '0.00');
 
 my %SUMMARY;
-my $CATEGORIES = { "O" => "Overall", "Q" => "Quantified in all labels", "I" => "Identified in all labels", "V" => "Validated (CV < ".($CV_THRESHOLD*100)."%)", "QV" => "Quantified in all labels and validated (CV < ".($CV_THRESHOLD*100)."%)" };
+my $CATEGORIES = { "O" => "Overall", "Q" => "Quantified in all labels", "I" => "Identified in all labels", "V" => "Validated (CV <= ".($CV_THRESHOLD*100)."%)", "QV" => "Quantified in all labels and validated (CV <= ".($CV_THRESHOLD*100)."%)" };
 my $INFO = { "nbQ" => "Quantified peptides", "pctQ" => "% Quantified peptides against Overall quantified peptides", "pctQI" => "% Quantified peptides against Overall identified peptides", "nbI" => "Identified peptides", "pctI" => "% Identified peptides against Overall Identified peptides", "M" => "Median abundance", "R" => "Ratio Median / Median(_)" };
 my $COLS = { "A" => "All labels", "1+" => "At least 1 label", "N" => "Not at all" };
 
@@ -138,9 +138,21 @@ sub determineValidTMTLabelColumns {
   }
   $NB_VALID_LABELS = scalar(@VALID_LABELS);
   @VALID_LABELS = sort(@VALID_LABELS);
+  if(scalar(@VALID_LABELS) == 0) {
+    push(@VALID_LABELS, "n/a");
+    $DENOM_LABEL = "n/a";
+    $NB_VALID_LABELS++;
+    print "No valid labels have been found, using 'n/a' instead...\n";
+  } else {
+    print "$NB_VALID_LABELS valid labels have been found: ".join(", ", @VALID_LABELS)."\n";
+    print "The label used as the denominator for the ratios will be '$DENOM_LABEL'\n";
+  }
   $INFO->{"R"} =~ s/_/$DENOM_LABEL/;
-  print "$NB_VALID_LABELS valid labels have been found: ".join(", ", @VALID_LABELS)."\n";
-  print "The label used as the denominator for the ratios will be '$DENOM_LABEL'\n";
+  # $NB_VALID_LABELS = scalar(@VALID_LABELS);
+  # @VALID_LABELS = sort(@VALID_LABELS);
+  # $INFO->{"R"} =~ s/_/$DENOM_LABEL/;
+  # print "$NB_VALID_LABELS valid labels have been found: ".join(", ", @VALID_LABELS)."\n";
+  # print "The label used as the denominator for the ratios will be '$DENOM_LABEL'\n";
 }
 
 sub addNewColumns {
@@ -174,7 +186,6 @@ sub addNewColumns {
     $nbGhostPeptides++ if(!exists($DATA{$row}{$H_FOUNDINALL}) || $DATA{$row}{$H_FOUNDINALL} eq 0);
   }
   
-  # -FIXME NB_PEPTIDES should be the number of peptides identified at least once
   $NB_PEPTIDES -= $nbGhostPeptides;
   print "$nbGhostPeptides peptides are never identified anywhere and will be removed from the total count of peptide\n";
   print "$NB_PEPTIDES peptides have been identified at least once\n";
@@ -241,8 +252,8 @@ sub addPlusOneToSummary {
   $SUMMARY{"O"}{$info}{$label}++;
   $SUMMARY{"Q"}{$info}{$label}++ if($nbQuant eq $NB_VALID_LABELS);
   $SUMMARY{"I"}{$info}{$label}++ if($nbIdent eq $NB_VALID_LABELS);
-  $SUMMARY{"V"}{$info}{$label}++ if($cv < $CV_THRESHOLD);
-  $SUMMARY{"QV"}{$info}{$label}++ if($nbQuant eq $NB_VALID_LABELS && $cv < $CV_THRESHOLD);
+  $SUMMARY{"V"}{$info}{$label}++ if($cv <= $CV_THRESHOLD);
+  $SUMMARY{"QV"}{$info}{$label}++ if($nbQuant eq $NB_VALID_LABELS && $cv <= $CV_THRESHOLD);
 }
 
 sub storeAbundanceToSummary {
@@ -254,8 +265,8 @@ sub storeAbundanceToSummary {
   push(@{$SUMMARY{"O"}{$info}}, $abundance);
   push(@{$SUMMARY{"Q"}{$info}}, $abundance) if($nbQuant eq $NB_VALID_LABELS);
   push(@{$SUMMARY{"I"}{$info}}, $abundance) if($nbIdent eq $NB_VALID_LABELS);
-  push(@{$SUMMARY{"V"}{$info}}, $abundance) if($cv < $CV_THRESHOLD);
-  push(@{$SUMMARY{"QV"}{$info}}, $abundance) if($nbQuant eq $NB_VALID_LABELS && $cv < $CV_THRESHOLD);
+  push(@{$SUMMARY{"V"}{$info}}, $abundance) if($cv <= $CV_THRESHOLD);
+  push(@{$SUMMARY{"QV"}{$info}}, $abundance) if($nbQuant eq $NB_VALID_LABELS && $cv <= $CV_THRESHOLD);
 }
 
 sub addCVsToSummary {
@@ -270,10 +281,19 @@ sub addCVsToSummary {
       $SUMMARY{"O"}{$info}++;
       $SUMMARY{"Q"}{$info}++ if($nbQuant eq $NB_VALID_LABELS);
       $SUMMARY{"I"}{$info}++ if($nbIdent eq $NB_VALID_LABELS);
-      $SUMMARY{"V"}{$info}++ if($cv < $CV_THRESHOLD);
-      $SUMMARY{"QV"}{$info}++ if($nbQuant eq $NB_VALID_LABELS && $cv < $CV_THRESHOLD);
+      $SUMMARY{"V"}{$info}++ if($cv <= $CV_THRESHOLD);
+      $SUMMARY{"QV"}{$info}++ if($nbQuant eq $NB_VALID_LABELS && $cv <= $CV_THRESHOLD);
     }
     $last = $cat;
+  }
+  # also store if the cv exceeds 100%
+  if($cv >= $CV_CATEGORIES[-1]) {
+    my $info = "NBCVlt100+";
+    $SUMMARY{"O"}{$info}++;
+    $SUMMARY{"Q"}{$info}++ if($nbQuant eq $NB_VALID_LABELS);
+    $SUMMARY{"I"}{$info}++ if($nbIdent eq $NB_VALID_LABELS);
+    $SUMMARY{"V"}{$info}++ if($cv <= $CV_THRESHOLD);
+    $SUMMARY{"QV"}{$info}++ if($nbQuant eq $NB_VALID_LABELS && $cv <= $CV_THRESHOLD);
   }
 }
 
@@ -433,7 +453,7 @@ sub addSummarySheet {
       $worksheet->write($row + 4, $j + 2, "", $format);
       # add median abundances
       my $median = calcMedian($cat, $label);
-      $worksheet->write($row + 5, $j + 2, $median, $format);
+      $worksheet->write_number($row + 5, $j + 2, $median, $format);
       $format = ($j == $NB_VALID_LABELS - 1 ? $fRatioLast : $fRatio);
       $worksheet->write_formula($row + 6, $j + 2, "=".getAddress($row + 5, $j + 2)."/".$adrDenomMedian, $format);
     }
@@ -488,13 +508,13 @@ sub calcMedian {
   return median(@values);
 }
 
-sub ratio {
-  my ($num, $denom) = @_;
-  return "#n/a" if(!$num || $num eq "");
-  return "#div/0" if(!$denom || $denom eq "n/a" || $denom eq 0);
-  return 0 if($num eq 0);
-  return $num / $denom;
-}
+# sub ratio {
+  # my ($num, $denom) = @_;
+  # return "#n/a" if(!$num || $num eq "");
+  # return "#div/0" if(!$denom || $denom eq "n/a" || $denom eq 0);
+  # return 0 if($num eq 0);
+  # return $num / $denom;
+# }
 
 # this method starts at 0 ! So the column A will match to value 0
 sub getColumnName {
@@ -527,9 +547,10 @@ sub addCategorySheet {
   $worksheet->write($row, $colId++, "CV categories", $fHeader);
   foreach (@CV_CATEGORIES) {
     my $cat = $_ * 100;
-    $worksheet->write($row, $colId++, "$last to $cat", $fHeader);
+    $worksheet->write($row, $colId++, "$last until $cat", $fHeader);
     $last = $cat;
   }
+  $worksheet->write($row, $colId++, "$last and over", $fHeader);
   for (my $i = 0; $i < scalar(@categories); $i++) {
     $colId = 0;
     my $cat = $categories[$i];
@@ -538,9 +559,11 @@ sub addCategorySheet {
       my $nb = (exists($SUMMARY{$cat}{"NBCVlt$_"}) ? $SUMMARY{$cat}{"NBCVlt$_"} : 0);
       $worksheet->write($row, $colId++, $nb, $fBorderAll);
     }
+    my $nb = (exists($SUMMARY{$cat}{"NBCVlt100+"}) ? $SUMMARY{$cat}{"NBCVlt100+"} : 0);
+    $worksheet->write($row, $colId++, $nb, $fBorderAll);
   }
   
-  $worksheet->autofilter(0, 0, $row - 1, scalar(@CV_CATEGORIES));
+  $worksheet->autofilter(0, 0, $row - 1, scalar(@CV_CATEGORIES) + 1);
   $worksheet->set_column(0, 0, 45);
-  $worksheet->set_column(1, scalar(@CV_CATEGORIES), 12);
+  $worksheet->set_column(1, scalar(@CV_CATEGORIES) + 1, 12);
 }
