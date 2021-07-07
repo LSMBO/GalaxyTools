@@ -22,9 +22,7 @@
                 </param>
             </when>
             <when value="list">
-                <param name="proteinList" label="Protein identifiers list" type="text" area="true">
-                    <validator type="regex" message="The pipe character '|' is not allowed here">^[^\|]*$</validator>
-                </param>
+                <param name="proteinList" label="Protein identifiers list" type="text" area="true" help="Separate entries with a new line, a space character, a comma or a dash. Avoid characters ';' and '|'." />
             </when>
             <when value="file">
                 <param format="txt" name="proteinFile" type="data" label="Protein identifiers file" multiple="false" />

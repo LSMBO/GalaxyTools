@@ -29,7 +29,7 @@
 
     </inputs>
     <outputs>
-      <data format="xlsx" name="output" label="Compared-${time.strftime('%Y%m%d-%H%M')}" />
+      <data format="xlsx" name="output" label="Protein list comparator: ${input.display_name}" />
     </outputs>
     <tests>
         <test>

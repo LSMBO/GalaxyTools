@@ -17,7 +17,7 @@
                 <option value="xlsx" selected="true">Excel input file</option>
             </param>
             <when value="list">
-                <param name="peptideList" label="Peptide list" type="text" area="true" />
+                <param name="peptideList" label="Peptide list" type="text" area="true" help="Separate entries with a new line, a space character, a comma or a dash. Avoid characters ';' and '|'." />
             </when>
             <when value="file">
                 <param format="txt" name="peptideFile" type="data" label="Peptide file" multiple="false"/>

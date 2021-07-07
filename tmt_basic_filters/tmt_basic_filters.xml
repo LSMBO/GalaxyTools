@@ -1,4 +1,4 @@
-<tool id="tmt_basic_filters" name="TMT basic filters" version="1.1.1">
+<tool id="tmt_basic_filters" name="TMT basic filters" version="1.1.2">
     <description>Process Proteome Discoverer TMT analyses</description>
     <requirements>
     </requirements>
@@ -16,8 +16,8 @@
             <validator type="regex" message="Integer values between 0 and 100, separated by a 'space' character">^([0-9]+\s+)*[0-9]+$</validator>
         </param>
     </inputs>
- <outputs>
-      <data format="xlsx" name="output" label="TMT_Basic_Filters" />
+    <outputs>
+      <data format="xlsx" name="output" label="TMT Basic Filters: ${inputFile.display_name}" />
     </outputs>
     <tests>
         <test>
