@@ -53,6 +53,7 @@ my %F_RED = (bg_color => '#ed7d31');
 my %F_ORANGE = (bg_color => '#ffbf00');
 my %F_PCT = (num_format => '0.00%');
 my %F_DEC = (num_format => '0.00');
+my %F_ALIGNLEFT = (align => 'left');
 
 my %SUMMARY;
 my $CATEGORIES = { "O" => "Overall", "Q" => "Quantified in all labels", "I" => "Identified in all labels", "V" => "Validated (CV <= ".($CV_THRESHOLD*100)."%)", "QV" => "Quantified in all labels and validated (CV <= ".($CV_THRESHOLD*100)."%)" };
@@ -147,12 +148,6 @@ sub determineValidTMTLabelColumns {
     print "$NB_VALID_LABELS valid labels have been found: ".join(", ", @VALID_LABELS)."\n";
     print "The label used as the denominator for the ratios will be '$DENOM_LABEL'\n";
   }
-  $INFO->{"R"} =~ s/_/$DENOM_LABEL/;
-  # $NB_VALID_LABELS = scalar(@VALID_LABELS);
-  # @VALID_LABELS = sort(@VALID_LABELS);
-  # $INFO->{"R"} =~ s/_/$DENOM_LABEL/;
-  # print "$NB_VALID_LABELS valid labels have been found: ".join(", ", @VALID_LABELS)."\n";
-  # print "The label used as the denominator for the ratios will be '$DENOM_LABEL'\n";
 }
 
 sub addNewColumns {
@@ -368,6 +363,7 @@ sub addSummarySheet {
   my $fNormal = $workbook->add_format();
   my $fWarning = $workbook->add_format(%F_WARNING);
   my $fHeader = $workbook->add_format(%F_HEADER, %F_BORDERS, %F_BLUE);
+  my $fHeaderDenom = $workbook->add_format(%F_HEADER, %F_BORDERS, %F_YELLOW);
   my $fMerge = $workbook->add_format(%F_MERGE, %F_BORDERS);
   my $fBorderBottom = $workbook->add_format(%F_BORDER_B);
   my $fBorderRight = $workbook->add_format(%F_BORDER_R);
@@ -376,6 +372,7 @@ sub addSummarySheet {
   my $fBorderRightPct = $workbook->add_format(%F_BORDER_R, %F_PCT);
   my $fBorderBottomDec = $workbook->add_format(%F_BORDER_B, %F_DEC);
   my $fBorderBottomRightDec = $workbook->add_format(%F_BORDER_B, %F_BORDER_R, %F_DEC);
+  my $formatLeft = $workbook->add_format(%F_ALIGNLEFT);
   # Colors have been removed
   # my $fQuantNum = $workbook->add_format(%F_YELLOW);
   # my $fQuantNumLast = $workbook->add_format(%F_YELLOW, %F_BORDER_R);
@@ -437,7 +434,7 @@ sub addSummarySheet {
     $worksheet->write($row + 3, 1, $INFO->{"nbI"}, $fBorderBottomRight);
     $worksheet->write($row + 4, 1, $INFO->{"pctI"}, $fBorderBottomRight);
     $worksheet->write($row + 5, 1, $INFO->{"M"}, $fBorderBottomRight);
-    $worksheet->write($row + 6, 1, $INFO->{"R"}, $fBorderBottomRight);
+    # ratio header will be written later
     # prepare the median for the lowest value
     my $adrDenomMedian = getAddress($row + 5, $colDenom);
     # Results per label
@@ -455,7 +452,7 @@ sub addSummarySheet {
       my $median = calcMedian($cat, $label);
       $worksheet->write_number($row + 5, $j + 2, $median, $format);
       $format = ($j == $NB_VALID_LABELS - 1 ? $fRatioLast : $fRatio);
-      $worksheet->write_formula($row + 6, $j + 2, "=".getAddress($row + 5, $j + 2)."/".$adrDenomMedian, $format);
+      # ratios will be written later
     }
     # Results per label category (percentages should be written as formula)
     $colId = $NB_VALID_LABELS + 1;
@@ -485,18 +482,39 @@ sub addSummarySheet {
     }
   }
   
+  # prepare next loop
+  my $row = scalar(@categories) * scalar(@info);
+  # add a line at the end to warn that PD returns peptides identified in no labels at all and that these peptides are not considered here
+  $worksheet->write($row + 2, 0, "Warning: Proteome Discoverer may return peptides although they are not identified in any label! Such peptides are not considered in the percentages displayed above.", $fWarning);
+  # add denominator line
+  $worksheet->write($row + 4, 0, "Label used as denominator:");
+  $worksheet->write($row + 4, 1, $DENOM_LABEL, $formatLeft);
+  my $denomAddress = getAddress($row + 4, 1);
+  $INFO->{"R"} =~ s/_/"&$denomAddress&"/;
+  $INFO->{"R"} = "=\"".$INFO->{"R"}."\"";
+  my $lastRow = $row;
+  my $lastCol = scalar(@headers) - 1;
+  # next loop for adaptative ratios
+  $worksheet->conditional_formatting("C1:".getColumnName($NB_VALID_LABELS+1)."1", { type => 'cell', criteria => '=', value => $denomAddress, format => $fHeaderDenom});
+  for (my $i = 0; $i < scalar(@categories); $i++) {
+    my $row = $i * scalar(@info) + 1;
+    my $cat = $categories[$i];
+    $worksheet->write_formula($row + 6, 1, $INFO->{"R"}, $fBorderBottomRight);
+    for (my $j = 0; $j < $NB_VALID_LABELS; $j++) {
+      my $format = ($j == $NB_VALID_LABELS - 1 ? $fRatioLast : $fRatio);
+      my $adrDenomMedian = "INDEX(".getAddress(0, 0).":".getAddress($lastRow, $lastCol).", ROW(".getAddress($row + 6, $j + 2).") - 1, MATCH($denomAddress,\$1:\$1,0))";
+      $worksheet->write_formula($row + 6, $j + 2, "=".getAddress($row + 5, $j + 2)."/".$adrDenomMedian, $format);
+    }
+  }
+  
   # set columns width: 25 55 12..12
   $worksheet->set_column(0, 0, 25);
   $worksheet->set_column(1, 1, 55);
-  $worksheet->set_column(2, scalar(@headers) - 1, 12);
+  $worksheet->set_column(2, $lastCol, 12);
 
   # finalize the sheet
-  my $row = scalar(@categories) * scalar(@info);
   $worksheet->freeze_panes(1);
-  $worksheet->autofilter(0, 0, $row, scalar(@headers) - 1);
-  
-  # add a line at the end to warn that PD returns peptides identified in no labels at all and that these peptides are not considered here
-  $worksheet->write($row + 2, 0, "Warning: Proteome Discoverer may return peptides although they are not identified in any label! Such peptides are not considered in the percentages displayed above.", $fWarning);
+  $worksheet->autofilter(0, 0, $lastRow, $lastCol);
 }
 
 sub calcMedian {
