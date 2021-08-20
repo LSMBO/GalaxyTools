@@ -1,4 +1,4 @@
-<tool id="tmt_basic_filters" name="TMT basic filters" version="1.1.3">
+<tool id="tmt_basic_filters" name="TMT basic filters" version="1.1.4">
     <description>Process Proteome Discoverer TMT analyses</description>
     <requirements>
     </requirements>
@@ -12,7 +12,7 @@
         <param name="inputFile" type="data" format="xlsx" multiple="false" label="Select a Proteome Discoverer output file" help="" />
         <param name="threshold" type="hidden" value="0.95" />
         <param name="cv" type="integer" label="CV threshold" value="20" help="Integer value between 0 and 100" />
-        <param name="cvcats" type="text" label="CV categories" value="5 10 15 20 40 60" help="Set CV values that will be used for categories. For instance '5 10' will produce three categories: 'Below 5%', 'Between 5% and 10%' and '10% and more'.">
+        <param name="cvcats" type="text" label="CV categories" value="5 10 15 20 40 60" help="Set CV values that will be used for categories. For instance '5 10' will produce three categories: 'Below 5%', 'Between 5% and 10%' and '10% and more'. End with '100' if you want a category for CVs that are exactly at 100%">
             <validator type="regex" message="Integer values between 0 and 100, separated by a 'space' character">^([0-9]+\s+)*[0-9]+$</validator>
         </param>
     </inputs>
@@ -33,6 +33,33 @@
     <help><![CDATA[
 
 **What it does**
+
+Takes a Proteome Discoverer output file from a TMT quantification run, and generates a summary of its content. This tools helps the user analyzing the results, and provides meta-informations without any manual intervention.
+Peptides are separated in multiple global categories:
+
+* Overall (includes all peptides without any filtering)
+* Quantified in all labels
+* Idenfied in all labels
+* Validated (with a CV less or equal to the threshold CV provided in the parameters)
+* Quantified in all labels and validated
+
+**Input file**
+
+The expected input file is a Proteome Discoverer export. Only the *first* sheet will be read and treated, so make sure your dara are on this sheet.
+
+**Categories**
+
+One of the tool's function is to group results based on CV categories. They are build on demand based on the values provided by the user, each category will contain CVs superior or equal to its lower boundary and strictly lower to its upper boundary. For example, the category '5 10' will correspond to CVs from 5% to 9.999%.
+
+**Output file**
+
+This tool with generate an Excel output file made of three sheets:
+
+* The first sheet will be a copy of the original sheet, with some formatting added to make its visualization easier. Some columns are also added for CV computation and information on whether each peptide has been idenfied and/or quantified in all TMT labels.
+* The second sheet is called 'CV categories' and is a summary of how many peptides corresponds to each category (global and CV categories).
+* The last sheet is called 'Summary' and presents the peptides per global category and per label.
+
+*Note*: Remember that reading a large Excel file will take time.
 
     ]]>
     </help>

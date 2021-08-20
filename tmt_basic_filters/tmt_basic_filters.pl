@@ -15,14 +15,14 @@ my ($paramFile, $outputFile) = @ARGV;
 # global variables
 my %PARAMS = %{parameters($paramFile)};
 my $CV_THRESHOLD = (exists($PARAMS{"cv"}) ? $PARAMS{"cv"} / 100 : 0.2);
-my @CV_CATEGORIES = (1);
+my @CV_CATEGORIES = ();
 if(exists($PARAMS{"cvcats"})) {
   foreach (split(" ", $PARAMS{"cvcats"})) {
     push(@CV_CATEGORIES, $_ / 100) unless($_ eq 0); # zero is implicit
   }
   @CV_CATEGORIES = sort(uniq(@CV_CATEGORIES));
 } else {
-  @CV_CATEGORIES = (0.05, 0.1, 0.15, 0.2, 0.4, 0.6, 1);
+  @CV_CATEGORIES = (0.05, 0.1, 0.15, 0.2, 0.4, 0.6);
 }
 my $PEP_THRESHOLD = (exists($PARAMS{"threshold"}) ? $PARAMS{"threshold"} : 0.95);
 
@@ -565,10 +565,10 @@ sub addCategorySheet {
   $worksheet->write($row, $colId++, "CV categories", $fHeader);
   foreach (@CV_CATEGORIES) {
     my $cat = $_ * 100;
-    $worksheet->write($row, $colId++, "$last until $cat", $fHeader);
+    $worksheet->write($row, $colId++, "$last% until $cat%", $fHeader);
     $last = $cat;
   }
-  $worksheet->write($row, $colId++, "$last and over", $fHeader);
+  $worksheet->write($row, $colId++, ($last eq 100 ? "Exactly $last%" : "$last% and over"), $fHeader);
   for (my $i = 0; $i < scalar(@categories); $i++) {
     $colId = 0;
     my $cat = $categories[$i];
@@ -583,5 +583,5 @@ sub addCategorySheet {
   
   $worksheet->autofilter(0, 0, $row - 1, scalar(@CV_CATEGORIES) + 1);
   $worksheet->set_column(0, 0, 45);
-  $worksheet->set_column(1, scalar(@CV_CATEGORIES) + 1, 12);
+  $worksheet->set_column(1, scalar(@CV_CATEGORIES) + 1, 15);
 }
