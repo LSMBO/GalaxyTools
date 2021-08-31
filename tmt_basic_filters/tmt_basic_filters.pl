@@ -167,7 +167,8 @@ sub addNewColumns {
       foreach my $label (@VALID_LABELS) {
         # count the number of non quantified labels per peptide
         if($col =~ m/^Abundance: .*: $label, Sample/) {
-          $DATA{$row}{$H_QUANTINALL}++ if($DATA{$row}{$col} ne "");
+          #$DATA{$row}{$H_QUANTINALL}++ if($DATA{$row}{$col} ne "");
+          $DATA{$row}{$H_QUANTINALL}++ if($DATA{$row}{$col} ne "" && $DATA{$row}{$col} ne "0");
           push(@values, $DATA{$row}{$col});
         } elsif($col =~ m/^Found in Sample: .*: $label, Sample/) {
           $DATA{$row}{$H_FOUNDINALL}++ if($DATA{$row}{$col} eq "High");
