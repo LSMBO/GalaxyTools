@@ -166,10 +166,10 @@ sub addNewColumns {
     foreach my $col (@HEADERS) {
       foreach my $label (@VALID_LABELS) {
         # count the number of non quantified labels per peptide
-        if($col =~ m/^Abundance: .*: $label, Sample$/) {
+        if($col =~ m/^Abundance: .*: $label, Sample/) {
           $DATA{$row}{$H_QUANTINALL}++ if($DATA{$row}{$col} ne "");
           push(@values, $DATA{$row}{$col});
-        } elsif($col =~ m/^Found in Sample: .*: $label, Sample$/) {
+        } elsif($col =~ m/^Found in Sample: .*: $label, Sample/) {
           $DATA{$row}{$H_FOUNDINALL}++ if($DATA{$row}{$col} eq "High");
         }
       }
@@ -304,8 +304,8 @@ sub addGlobalSheet {
   my $colId = 0;
   foreach (@HEADERS) {
     my $format = $formatH;
-    $format = $formatHY if(m/^Abundance: .*, Sample$/ || $_ eq $H_QUANTINALL || $_ eq $H_CVCALC);
-    $format = $formatHR if(m/^Found in Sample: .*, Sample$/ || $_ eq $H_FOUNDINALL);
+    $format = $formatHY if(m/^Abundance: .*, Sample/ || $_ eq $H_QUANTINALL || $_ eq $H_CVCALC);
+    $format = $formatHR if(m/^Found in Sample: .*, Sample/ || $_ eq $H_FOUNDINALL);
     $worksheet->write(0, $colId++, $_, $format);
   }
   # write the content of %DATA in the new sheet, and store/compute on the fly
@@ -334,12 +334,12 @@ sub addGlobalSheet {
         addPlusOneToSummary("nbI", $cell, $row);
       } else {
         foreach my $label (@VALID_LABELS) {
-          if($col =~ m/^Abundance: .*: $label, Sample$/) {
+          if($col =~ m/^Abundance: .*: $label, Sample/) {
             if($cell ne "") {
               addPlusOneToSummary("nbQ", $label, $row);
               storeAbundanceToSummary($cell, $label, $row);
             }
-          } elsif($col =~ m/^Found in Sample: .*: $label, Sample$/) {
+          } elsif($col =~ m/^Found in Sample: .*: $label, Sample/) {
             addPlusOneToSummary("nbI", $label, $row) if($cell eq "High");
           }
         }
