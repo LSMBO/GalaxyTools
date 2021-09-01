@@ -78,11 +78,12 @@ sub REST_POST_Uniprot_tab {
   my $i = 1;
   foreach my $file (@inputFiles) {
     # update the parameters
-    push(@$params, 'file' => [$file]);
+    my @batchParams = @$params;
+    push(@batchParams, 'file' => [$file]);
     my $nbTries = 0;
     my $isSuccess = 0;
     while($isSuccess == 0) {
-      my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, $params);
+      my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, \@batchParams);
       if($code == 400 || $code == 500) {
         # these error codes do not mean the request was necessarily wrong, let's retry another time
         $nbTries++;
@@ -133,11 +134,12 @@ sub REST_POST_Uniprot_fasta {
   my $i = 1;
   foreach my $file (@inputFiles) {
     # update the parameters
-    push(@$params, 'file' => [$file]);
+    my @batchParams = @$params;
+    push(@batchParams, 'file' => [$file]);
     my $nbTries = 0;
     my $isSuccess = 0;
     while($isSuccess == 0) {
-      my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, $params);
+      my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, \@batchParams);
       if($code == 0) {
         $uniprotVersion = $version;
         open(my $fh, ">>", $fastaOutput) or LsmboFunctions::stderr("Can't write fasta output file to append data: $!");
