@@ -69,6 +69,8 @@ exit;
 sub main {
   my ($inputFile, $outputFile) = @_;
   
+  # TODO add a check on the file format ? Or make sure to fail when something is not expected ?
+  
   # read excel file and create a hash with 1 entry per line (key is line number)
   # and create an array to define the order of the columns at the moment of writing the output file
   readInputFile($inputFile);
@@ -108,7 +110,11 @@ sub readInputFile {
         # create an array to define the order of the columns at the moment of writing the output file
         push(@HEADERS, getValue($sheet, $row, $col));
       } else {
-        $DATA{$row}{$HEADERS[$col]} = getValue($sheet, $row, $col);
+        # these columns will be created later, if they appear here it means that the input file is an output file of this same tool
+        # in that case, do not store the data
+        if($HEADERS[$col] ne $H_QUANTINALL && $HEADERS[$col] ne $H_CVCALC && $HEADERS[$col] ne $H_FOUNDINALL) {
+          $DATA{$row}{$HEADERS[$col]} = getValue($sheet, $row, $col);
+        }
       }
     }
   }
@@ -162,7 +168,6 @@ sub isQuantifiedColumn {
   $label = ".*" if(!$label || $label eq "");
   #return 1 if($col =~ m/^Abundance: .*: $label, Sample/); # this was the previous condition
   return 1 if($col =~ m/^Abundance: .*: $label, Sample.*/ || $col =~ m/^Abundance: .*: $label, Control.*/);
-  # return 1 if($col =~ m/^Abundance: .*: n\/a, Sample.*/ || $col =~ m/^Abundance: .*: n\/a, Control.*/);
   return 1 if($col =~ m/^Abundance: $label: n\/a, Sample.*/ || $col =~ m/^Abundance: $label: n\/a, Control.*/);
   return 0;
 }
@@ -171,7 +176,6 @@ sub isIdentifiedColumn {
   $label = ".*" if(!$label || $label eq "");
   #return 1 if($col =~ m/^Found in Sample: .*: $label, Sample/); # this was the previous condition
   return 1 if($col =~ m/^Found in Sample: .*: $label, Sample.*/ || $col =~ m/^Found in Sample: .*: $label, Control.*/);
-  # return 1 if($col =~ m/^Found in Sample: .*: n\/a, Sample.*/ || $col =~ m/^Found in Sample: .*: n\/a, Control.*/);
   return 1 if($col =~ m/^Found in Sample: .* $label: n\/a, Sample.*/ || $col =~ m/^Found in Sample: .* $label: n\/a, Control.*/);
   return 0;
 }
@@ -219,10 +223,25 @@ sub getColumnIdBySearch {
   return $i;
 }
 
+sub doesColumnNameExist {
+  my ($columnName) = @_;
+  for (my $i = 0; $i < scalar(@HEADERS); $i++) {
+    if($HEADERS[$i] eq $columnName) {
+      print "Column '$columnName' is already in the input file, it will be reused and its former data will be overwritten\n";
+      return $i;
+    }
+  }
+  return -1;
+}
+
 sub addNewColumn {
   my ($newColumnName, $beforeColumn) = @_;
-  my $id = getColumnIdBySearch($beforeColumn) - 1;
-  splice(@HEADERS, $id, 0, $newColumnName);
+  my $id = doesColumnNameExist($newColumnName);
+  if($id < 0) {
+    # the column did not already existed
+    $id = getColumnIdBySearch($beforeColumn) - 1;
+    splice(@HEADERS, $id, 0, $newColumnName);
+  }
   return $id;
 }
 
