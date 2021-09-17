@@ -812,23 +812,7 @@ sub writeExcelOutput {
         writeExcelLine($sheet, $rowNumber++, $DATA{$i}{"A"}, $DATA{$i}{"B"}, $DATA{$i}{"C"}, $DATA{$i}{"D"});
       }
     }
-    # $sheet->autofilter($headerLine, 0, $rowNumber - 1, $headerLine - 2);
     $sheet->autofilter($headerLine, 0, $rowNumber - 1, scalar(@headers) - 1);
-    # $sheet->set_column(0, 0, 30); # Column A width set to 30
-    # $sheet->set_column(1, 1, 15);
-    # $sheet->set_column(2, 2, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    # $sheet->set_column(3, 3, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    # my $col = 0;
-    # print "ABU set_column($col, $col, 30)\n";
-    # $sheet->set_column($col, $col++, 30); # Column A width set to 30
-    # print "ABU set_column($col, $col, 30)\n";
-    # $sheet->set_column($col, $col++, 30) if($PARAMS{"type"} eq "uniprot"); # Column 'Uniprot entry' width set to 30
-    # print "ABU set_column($col, $col, 15)\n";
-    # $sheet->set_column($col, $col++, 15);
-    # print "ABU set_column($col, $col, 15)\n" if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    # $sheet->set_column($col, $col++, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    # print "ABU set_column($col, $col, 15)\n" if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    # $sheet->set_column($col, $col++, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
     my @columnsWidth = (30);
     push(@columnsWidth, 30) if($PARAMS{"type"} eq "uniprot");
     push(@columnsWidth, 15);
