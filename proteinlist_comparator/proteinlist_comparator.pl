@@ -68,12 +68,23 @@ my %data;
 
 # read the whole file and count for each conditions
 for my $row ($row_min+1 .. $row_max) {
+  # get all cell values in the line
+  my @cells;
+  my $isLineFilled = 0;
+  for my $col ($col_min .. $col_max) {
+    my $cell = getValue($worksheet, $row, $col);
+    push(@cells, $cell);
+    $isLineFilled++ if($cell ne "");
+  }
+  # check if the line is empty
+  next if($isLineFilled == 0);
+  # store the data
   my %hash;
   foreach my $id (@conditionColumnIds) {
-    $hash{$headers[$id]} = getValue($worksheet, $row, $id);
+    $hash{$headers[$id]} = $cells[$id];
   }
-  my $protein = getValue($worksheet, $row, $proteinColumnId);
-  my $sample = getValue($worksheet, $row, $sampleColumnId);
+  my $protein = $cells[$proteinColumnId];
+  my $sample = $cells[$sampleColumnId];
   $data{$sample}{$protein} = \%hash;
   $proteins{$protein}++;
   $samples{$sample}++;
@@ -82,36 +93,52 @@ for my $row ($row_min+1 .. $row_max) {
 # get sorted proteins and samples
 my @proteins = sort keys %proteins;
 my @samples = sort keys %samples;
+print scalar(@samples)." samples and ".scalar(@proteins)." proteins have been found\n";
 
 # write the output file
 print "Creating file $outputFile\n";
 (my $self, $workbook) = Excel::Template::XLSX->new($outputFile, $inputCopy);
 $self->parse_template();
-$worksheet = $workbook->add_worksheet();
+$worksheet = $workbook->add_worksheet("Protein list comparator");
+
+# prepare header format
+my %F_BORDERS = (top => 1, bottom => 1, right => 1, left => 1);
+my %F_BORDER_R = (right => 1);
+my %F_HEADER = (bold => 1, valign => 'top', text_wrap => 1);
+my %F_MERGE = (align => 'center', valign => 'vcenter', text_wrap => 1);
+my $fNormal = $workbook->add_format();
+my $fHeaderTop = $workbook->add_format(%F_HEADER, %F_BORDERS, %F_MERGE);
+my $fHeader = $workbook->add_format(%F_HEADER, %F_BORDERS);
+my $fRight = $workbook->add_format(%F_BORDER_R);
 
 # write headers
-$worksheet->write(1, 0, $headers[$proteinColumnId]);
+$worksheet->write(1, 0, $headers[$proteinColumnId], $fHeader);
 my $col = 1;
 foreach my $id (@conditionColumnIds) {
-  $worksheet->write(0, $col, $headers[$id]);
+  $worksheet->merge_range(0, $col, 0, $col + scalar(@samples) - 1, $headers[$id], $fHeaderTop);
   foreach my $sample (@samples) {
-    $worksheet->write(1, $col++, $sample);
+    $worksheet->write(1, $col++, $sample, $fHeader);
   }
 }
 
 # write data
-# TODO make it pretty with nice formatting and borders
 my $row = 2;
 foreach my $protein (@proteins) {
   $col = 0;
-  $worksheet->write($row, $col++, $protein);
+  $worksheet->write($row, $col++, $protein, $fRight);
   foreach my $id (@conditionColumnIds) {
-    foreach my $sample (@samples) {
-      $worksheet->write($row, $col++, $data{$sample}{$protein}->{$headers[$id]});
+    for(my $i = 0; $i < scalar(@samples); $i++) {
+      my $format = ($i == scalar(@samples) - 1 ? $fRight : $fNormal);
+      my $sample = $samples[$i];
+      $worksheet->write($row, $col++, $data{$sample}{$protein}->{$headers[$id]}, $format);
     }
   }
   $row++;
 }
+
+# adjust column widths
+$worksheet->set_column(0, 0, 35);
+$worksheet->set_column(1, scalar(@conditionColumnIds) * scalar(@samples), 15);
 
 $workbook->close();
 
