@@ -1,7 +1,7 @@
 <tool id="ease_db" name="EaseDB" version="1.1.0">
     <description>Generates a taxonomy-centered database for DAVID's EASE software</description>
     <command detect_errors="exit_code"><![CDATA[
-        perl $__tool_directory__/easei_db.pl '$inputs' '$output'
+        perl $__tool_directory__/ease_db.pl '$inputs' '$output'
     ]]></command>
     <configfiles>
         <inputs name="inputs" data_style="paths" />
