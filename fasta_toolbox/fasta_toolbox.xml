@@ -1,4 +1,4 @@
-<tool id="fasta_toolbox" name="Fasta toolbox" version="1.3.1">
+<tool id="fasta_toolbox" name="Fasta toolbox" version="1.3.2">
     <description>Generation of Fasta files</description>
     <macros>
         <import>macroCrap.xml</import>
@@ -21,8 +21,8 @@
     <inputs>
 
       <!-- Fasta file name -->
-      <param name="name" size="12" type="text" value="" optional="false" label="Fasta file base name" help="The name must be short and only contain letters">
-        <validator type="regex" message="1 to 12 letters only">^[a-zA-Z]{1,12}$</validator>
+      <param name="name" size="125" type="text" value="" optional="false" label="Fasta file base name" help="The name must be less than 125 characters, space characters are not allowed.">
+        <validator type="regex" message="Allowed characters are alphanumerics, dot '.', dash '-', underscore '_' and parentheses">^[a-zA-Z0-9_\.\-\(\)]{1,125}$</validator>
       </param>
 
       <!-- User initials -->
@@ -126,6 +126,8 @@ Eventually, the 'Fasta toolbox' can be used for all Fasta files, even from a dif
 
 
 **Updates**
+
+* 16/09/2021: allow up to 125 characters for the Fasta file name, also allows characters dot, dash, underscore and parentheses.
 
 * 16/06/2021: improved the speed of the search for sub sequences by using multithreading.
 
