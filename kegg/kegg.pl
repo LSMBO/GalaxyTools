@@ -8,7 +8,7 @@ use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(archive getDate parameters stderr);
 use LsmboExcel qw(getValue setColumnsWidth writeExcelLine writeExcelLineF);
-use LsmboRest qw(REST_GET);
+use LsmboRest qw(REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
 
 use DBI;
 use File::Copy;
@@ -58,6 +58,33 @@ copy($PARAMS{"inputFile"}, $inputCopy);
 my @headers = extractData($inputCopy);
 print "".scalar(keys(%DATA))." entries have been stored\n";
 
+# make sure the uniprot identifiers are the good ones
+# what is expected is the Entry, and not the Entry name (ie. P0DPI2 instead of GAL3A_HUMAN)
+if($PARAMS{"type"} eq "uniprot") {
+  # put the ids in a text file
+  my $tempFile = "uniprot_temp_ids.txt";
+  open(my $tmp, '>', $tempFile) or stderr("Unable to create a temporary file for Uniprot conversion");
+  foreach (keys(%DATA)) {
+    print $tmp $DATA{$_}{"A"}."\n";
+  }
+  close $tmp;
+  # ask uniprot for the corresponding Entry (id)
+  my %output = %{REST_POST_Uniprot_tab($tempFile, "ACC+ID", "id")};
+  # extract uniprot version
+  my $version = delete($output{UNIPROT_RELEASE()});
+  # replace the keys in %DATA
+  foreach (keys(%DATA)) {
+    my $userEntry = $DATA{$_}{"A"};
+    my @items = @{$output{$userEntry}};
+    my $entry = $items[1];
+    # $DATA{$_}{"A"} = $entry;
+    # $DATA{$_}{"UserEntry"} = $userEntry;
+    $DATA{$_}{"Entry"} = $entry;
+  }
+  # delete the temp file
+  unlink $tempFile;
+}
+
 my $taxonomy = "";
 if($PARAMS{"type"} eq "uniprot") {
   # detect the taxonomy based on the first protein ID
@@ -88,12 +115,10 @@ prepareDrawing($taxonomy);
 createSvgFiles();
 
 # create excel output
-# my $xlsxFile = writeExcelOutput(\@headers, $taxonomy, $anova, $fc, $tukey, $outputFile);
 writeExcelOutput(\@headers, $taxonomy, $outputFile);
 
 # compress the svg folder at the end
 print "Creating zip file with all svg files\n";
-# archive($zipFile, $DIR_SVG, $xlsxFile);
 archive($zipFile, $DIR_SVG);
 
 # clean stuff at the end
@@ -145,7 +170,8 @@ sub extractData {
 sub detectTaxonomy {
     # use the REST api with each protein until one protein matches a taxonomy (hopefully the first one!)
     foreach my $i (keys(%DATA)) {
-        my $protein = $DATA{$i}{"A"};
+        # my $protein = $DATA{$i}{"A"};
+        my $protein = (exists($DATA{$i}{"Entry"}) ? $DATA{$i}{"Entry"} : $DATA{$i}{"A"});
         my $output = REST_GET("http://rest.kegg.jp/conv/genes/up:$protein");
         # expected result: up:O14683\thsa:9537
         if($output =~ m/.+\t(.+):.+$/) {
@@ -241,7 +267,6 @@ sub importData {
     my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
         AutoCommit => 0 # disable auto-commit to improve the import
     }) or stderr($DBI::errstr);
-    # doAndCommit($dbh, qq(CREATE TABLE acc (protein TEXT PRIMARY KEY, color TEXT NOT NULL);));
     if($PARAMS{"type"} eq "uniprot") {
       doAndCommit($dbh, qq(CREATE TABLE acc (protein TEXT PRIMARY KEY, color TEXT NOT NULL);));
     } else {
@@ -253,17 +278,15 @@ sub importData {
     print "Filling database with user data\n";
     for(my $i = 0; $i < scalar(keys(%DATA)); $i++) {
         my %row = %{$DATA{$i}};
-        my $acc = $row{"A"};
-        # if(!looks_like_number($anova) && !looks_like_number($fc) && !looks_like_number($tukey)) {
+        # my $acc = $row{"A"};
+        my $acc = (exists($row{"Entry"}) ? $row{"Entry"} : $row{"A"});
         if($PARAMS{"Statistics"}{"value"} eq "none") {
             # no statistics
             $sth->execute($acc, "Y");
-        # } elsif(looks_like_number($anova) && !looks_like_number($fc) && !looks_like_number($tukey)) {
         } elsif($PARAMS{"Statistics"}{"value"} eq "anova_only") {
             # just anova
             my $anova = $PARAMS{"Statistics"}{"anova"};
             $sth->execute($acc, $row{"B"} < $anova ? "B" : "Y");
-        # } elsif(looks_like_number($anova) && looks_like_number($fc) && !looks_like_number($tukey)) {
         } elsif($PARAMS{"Statistics"}{"value"} eq "anova_fc") {
             # anova + FC
             my $anova = $PARAMS{"Statistics"}{"anova"};
@@ -279,7 +302,6 @@ sub importData {
                 $sth->execute($acc, "Y");
             }
         # TODO test with tukey
-        # } elsif(looks_like_number($anova) && looks_like_number($fc) && looks_like_number($tukey)) {
         } elsif($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey") {
             # anova + Tukey + FC
             my $anova = $PARAMS{"Statistics"}{"anova"};
@@ -472,7 +494,6 @@ sub cleanMaps {
         $map =~ s/path:$taxonomy//;
         # create a temporary view
         $dbh->do("DROP VIEW IF EXISTS view_map");
-        # my $sth = $dbh->prepare("CREATE TEMP VIEW view_map AS SELECT keggid FROM map WHERE path=\"path:$taxonomy$map\"");
         my $sql_c = "CREATE TEMP VIEW view_map AS SELECT keggid FROM map WHERE path=\"path:$taxonomy$map\"";
         $sql_c = "CREATE TEMP VIEW view_map AS SELECT cpd FROM map WHERE path=\"path:map$map\"" if($PARAMS{"type"} ne "uniprot");
         my $sth = $dbh->prepare($sql_c);
@@ -497,7 +518,6 @@ sub cleanMaps {
         close $fh;
     }
 
-    #$sth->finish;
     $dbh->disconnect();
 }
 
@@ -513,7 +533,6 @@ sub prepareDrawing {
     foreach my $map (glob("$DIR_DRAW/*.xml")) {
         my ($number) = $map =~ /(\d+)/;
         $dbh->do("DROP VIEW IF EXISTS view_map");
-        # my $sth=$dbh->prepare("CREATE VIEW view_map AS SELECT protein, color, keggid FROM map WHERE path=\"path:$taxonomy$number\"");
         my $sql_c = "CREATE VIEW view_map AS SELECT protein, color, keggid FROM map WHERE path=\"path:$taxonomy$number\"";
         $sql_c = "CREATE VIEW view_map AS SELECT cpd, color, path FROM map WHERE path=\"path:map$number\"" if($PARAMS{"type"} ne "uniprot");
         my $sth = $dbh->prepare($sql_c);
@@ -557,7 +576,6 @@ sub prepareDrawing {
 
 sub hsaToProtein {
     my ($dbh, $names) = @_;
-    # my $sth = $$dbh->prepare("SELECT protein, color FROM view_map WHERE keggid=? AND color=?");
     my $sql = "SELECT protein, color FROM view_map WHERE keggid=? AND color=?";
     $sql = "SELECT cpd, color FROM view_map WHERE cpd=? AND color=?" if($PARAMS{"type"} ne "uniprot");
     my $sth = $$dbh->prepare($sql);
@@ -644,7 +662,6 @@ sub getBase64 {
 sub draw {
     my ($ptEntry, $svg, $id) = @_;
     my %entry = %{$ptEntry};
-    #print Dumper($ptEntry);
     
     # array of colors, same order as in hsaToProtein !
     my @colorIdx = ("Y", "B", "R", "G");
@@ -753,7 +770,6 @@ sub draw {
 }
 
 sub writeExcelOutput {
-    # my ($ptHeaders, $taxonomy, $anova, $fc, $tukey, $outputFile) = @_;
     my ($ptHeaders, $taxonomy, $outputFile) = @_;
 
     print "Writing final Excel file\n";
@@ -781,29 +797,53 @@ sub writeExcelOutput {
     $rowNumber++; # add an empty line
     # then headers
     my $headerLine = $rowNumber;
-    writeExcelLineF($sheet, $rowNumber++, $formatH, @{$ptHeaders});
+    # writeExcelLineF($sheet, $rowNumber++, $formatH, @{$ptHeaders});
+    my @headers = @{$ptHeaders};
+    splice(@headers, 1, 0, 'Uniprot entry') if($PARAMS{"type"} eq "uniprot");
+    writeExcelLineF($sheet, $rowNumber++, $formatH, @headers);
     $sheet->freeze_panes($rowNumber);
     # then the data
-    for(my $i = 0; $i < scalar(keys(%DATA)); $i++) {
+    if($PARAMS{"type"} eq "uniprot") {
+      for(my $i = 0; $i < scalar(keys(%DATA)); $i++) {
+        writeExcelLine($sheet, $rowNumber++, $DATA{$i}{"A"}, $DATA{$i}{"Entry"}, $DATA{$i}{"B"}, $DATA{$i}{"C"}, $DATA{$i}{"D"});
+      }
+    } else {
+      for(my $i = 0; $i < scalar(keys(%DATA)); $i++) {
         writeExcelLine($sheet, $rowNumber++, $DATA{$i}{"A"}, $DATA{$i}{"B"}, $DATA{$i}{"C"}, $DATA{$i}{"D"});
+      }
     }
-    $sheet->autofilter($headerLine, 0, $rowNumber - 1, $headerLine - 2);
-    $sheet->set_column(0, 0, 30); # Column A width set to 30
-    $sheet->set_column(1, 1, 15);
-    $sheet->set_column(2, 2, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    $sheet->set_column(3, 3, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    # $sheet->autofilter($headerLine, 0, $rowNumber - 1, $headerLine - 2);
+    $sheet->autofilter($headerLine, 0, $rowNumber - 1, scalar(@headers) - 1);
+    # $sheet->set_column(0, 0, 30); # Column A width set to 30
+    # $sheet->set_column(1, 1, 15);
+    # $sheet->set_column(2, 2, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    # $sheet->set_column(3, 3, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    # my $col = 0;
+    # print "ABU set_column($col, $col, 30)\n";
+    # $sheet->set_column($col, $col++, 30); # Column A width set to 30
+    # print "ABU set_column($col, $col, 30)\n";
+    # $sheet->set_column($col, $col++, 30) if($PARAMS{"type"} eq "uniprot"); # Column 'Uniprot entry' width set to 30
+    # print "ABU set_column($col, $col, 15)\n";
+    # $sheet->set_column($col, $col++, 15);
+    # print "ABU set_column($col, $col, 15)\n" if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    # $sheet->set_column($col, $col++, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    # print "ABU set_column($col, $col, 15)\n" if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    # $sheet->set_column($col, $col++, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    my @columnsWidth = (30);
+    push(@columnsWidth, 30) if($PARAMS{"type"} eq "uniprot");
+    push(@columnsWidth, 15);
+    push(@columnsWidth, 15)if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    push(@columnsWidth, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+    setColumnsWidth($sheet, @columnsWidth);
     
     # add map sheet
     $sheet = $workbook->add_worksheet("Maps");
     $rowNumber = 0;
     my $field = ($PARAMS{"type"} eq "uniprot" ? "protein" : "cpd");
-    # writeExcelLineF($sheet, $rowNumber++, $formatH, "Accession numbers", "Status", "Nb maps", "Pathway Map:level_1:level_2");
     writeExcelLineF($sheet, $rowNumber++, $formatH, ($PARAMS{"type"} eq "uniprot" ? "Accession numbers" : "Identifiers"), "Status", "Nb maps", "Pathway Map:level_1:level_2");
     $sheet->freeze_panes($rowNumber);
-	  # my $rows = $dbh->selectall_arrayref("SELECT protein, color, count(protein) FROM map GROUP BY protein");
     my $rows = $dbh->selectall_arrayref("SELECT $field, color, count($field) FROM map GROUP BY $field");
     foreach my $acc (@$rows) {
-        # my $pathes = $dbh->selectall_arrayref("SELECT path FROM map WHERE protein='$$acc[0]'");
         my $pathes = $dbh->selectall_arrayref("SELECT path FROM map WHERE $field='$$acc[0]'");
         my @maps;
         foreach my $path (@$pathes) {
