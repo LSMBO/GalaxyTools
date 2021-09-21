@@ -9,7 +9,7 @@
         <inputs name="inputs" data_style="paths" />
     </configfiles>
     <inputs>
-        <param name="inputFile" type="data" format="xlsx,txt" multiple="false" label="Select a Proteome Discoverer output file" help="Supported formats are Excel and Text (tab-delimited)" />
+        <param name="inputFile" type="data" format="data,xlsx" multiple="false" label="Select a Proteome Discoverer output file" help="Supported formats are Excel and Text (tab-delimited)" />
         <param name="threshold" type="hidden" value="0.95" />
         <param name="cv" type="integer" label="CV threshold" value="20" help="Integer value between 0 and 100" />
         <param name="cvcats" type="text" label="CV categories" value="5 10 15 20 40 60" help="Set CV values that will be used for categories. For instance '5 10' will produce three categories: 'Below 5%', 'Between 5% and 10%' and '10% and more'. End with '100' if you want a category for CVs that are exactly at 100%">
