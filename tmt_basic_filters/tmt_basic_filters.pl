@@ -109,8 +109,10 @@ sub readInputFileTxt {
   my ($inputFile) = @_;
   print "Reading text input file\n";
   my $csv = Text::CSV->new ({ 
+#    eol => "\r\n", 
     binary => 1, 
     auto_diag => 2, 
+    diag_verbose => 1, 
     sep_char => "\t", 
     escape_char => "\\", 
     always_quote => 1, 
@@ -125,22 +127,16 @@ sub readInputFileTxt {
   }
   # read the rest of the file
   my $row = 1;
-  while (<$fh>) {
-    chomp;
+  while (my $line = $csv->getline ($fh)) {
     # parsing the line
-    if ($csv->parse($_)) {
-      # extracting elements
-      my @cells = $csv->fields();
-      for (my $i = 0; $i < scalar(@cells); $i++) {
-        # these columns will be created later, if they appear here it means that the input file is an output file of this same tool
-        # in that case, do not store the data
-        if($HEADERS[$i] ne $H_QUANTINALL && $HEADERS[$i] ne $H_CVCALC && $HEADERS[$i] ne $H_FOUNDINALL) {
-          $DATA{$row}{$HEADERS[$i]} = $cells[$i];
-        }
+    my @cells = @{$line};
+    # extracting elements
+    for (my $i = 0; $i < scalar(@cells); $i++) {
+      # these columns will be created later, if they appear here it means that the input file is an output file of this same tool
+      # in that case, do not store the data
+      if($HEADERS[$i] ne $H_QUANTINALL && $HEADERS[$i] ne $H_CVCALC && $HEADERS[$i] ne $H_FOUNDINALL) {
+        $DATA{$row}{$HEADERS[$i]} = $cells[$i];
       }
-    } else {
-      # Warning to be displayed
-      warn "Line $row could not be parsed: $_\n";
     }
     $row++;
   }
