@@ -9,6 +9,7 @@ use LsmboExcel qw(addWorksheet getValue);
 
 use List::MoreUtils qw(uniq);
 use Statistics::Basic qw(median);
+use Text::CSV qw( csv );
 
 my ($paramFile, $outputFile) = @ARGV;
 
@@ -80,7 +81,8 @@ sub main {
   
   # add columns 'Quantified in all' and 'CVs calculation' after the columns 'Abundance: '
   # add column 'Found in all' after the columns 'Found in Sample: '
-  addNewColumns();
+  # also create the summary on the fly
+  analyseData();
   
   # put the results in a Excel file
   my $workbook = createExcelFile($inputFile, $outputFile);
@@ -93,8 +95,61 @@ sub main {
 
 # read excel file and create a hash with 1 entry per line (key is line number)
 sub readInputFile {
+  my ($file) = @_;
+  if(-T $file) {
+    readInputFileTxt($file);
+  } else {
+    readInputFileXlsx($file);
+  }
+  $NB_PEPTIDES = scalar(keys(%DATA));
+  print "$NB_PEPTIDES peptides have been read\n";
+}
+
+sub readInputFileTxt {
   my ($inputFile) = @_;
-  print "Reading input file\n";
+  print "Reading text input file\n";
+  my $csv = Text::CSV->new ({ 
+    binary => 1, 
+    auto_diag => 2, 
+    sep_char => "\t", 
+    escape_char => "\\", 
+    always_quote => 1, 
+  });
+  
+  open(my $fh, '<', $inputFile) or stderr("Can't open the input file: $!");
+  # read the header line
+  my $cells = $csv->getline($fh);
+  for (my $i = 0; $i < scalar(@{$cells}); $i++) {
+    # create an array to define the order of the columns at the moment of writing the output file
+    push(@HEADERS, $cells->[$i]);
+  }
+  # read the rest of the file
+  my $row = 1;
+  while (<$fh>) {
+    chomp;
+    # parsing the line
+    if ($csv->parse($_)) {
+      # extracting elements
+      my @cells = $csv->fields();
+      for (my $i = 0; $i < scalar(@cells); $i++) {
+        # these columns will be created later, if they appear here it means that the input file is an output file of this same tool
+        # in that case, do not store the data
+        if($HEADERS[$i] ne $H_QUANTINALL && $HEADERS[$i] ne $H_CVCALC && $HEADERS[$i] ne $H_FOUNDINALL) {
+          $DATA{$row}{$HEADERS[$i]} = $cells[$i];
+        }
+      }
+    } else {
+      # Warning to be displayed
+      warn "Line $row could not be parsed: $_\n";
+    }
+    $row++;
+  }
+  close $fh;
+}
+
+sub readInputFileXlsx {
+  my ($inputFile) = @_;
+  print "Reading Excel input file\n";
   my $parser = Spreadsheet::ParseXLSX->new;
   my $workbook = $parser->parse($inputFile);
   stderr($parser->error()) if(!defined $workbook);
@@ -118,8 +173,6 @@ sub readInputFile {
       }
     }
   }
-  $NB_PEPTIDES = scalar(keys(%DATA));
-  print "$NB_PEPTIDES peptides have been read\n";
 }
 
 # determine the number of TMT label columns, and which columns to ignore (check the columns 'Found in Sample' where 'Not Found' is over 95% of the values, maybe use a user value instead of 95)
@@ -180,11 +233,60 @@ sub isIdentifiedColumn {
   return 0;
 }
 
-sub addNewColumns {
+sub getQuantifiedColumns {
+  my @ids;
+  foreach my $col (@HEADERS) {
+    foreach my $label (@VALID_LABELS) {
+      # count the number of non quantified labels per peptide
+      push(@ids, $col) if(isQuantifiedColumn($col, $label) == 1);
+    }
+  }
+  return @ids;
+}
+# same order as getQuantifiedColumns
+sub getQuantifiedLabels {
+  my @labels;
+  foreach my $col (@HEADERS) {
+    foreach my $label (@VALID_LABELS) {
+      # count the number of non quantified labels per peptide
+      push(@labels, $label) if(isQuantifiedColumn($col, $label) == 1);
+    }
+  }
+  return @labels;
+}
+
+sub getIdentifiedColumns {
+  my @ids;
+  foreach my $col (@HEADERS) {
+    foreach my $label (@VALID_LABELS) {
+      # count the number of non quantified labels per peptide
+      push(@ids, $col) if(isIdentifiedColumn($col, $label) == 1);
+    }
+  }
+  return @ids;
+}
+sub getIdentifiedLabels {
+  my @labels;
+  foreach my $col (@HEADERS) {
+    foreach my $label (@VALID_LABELS) {
+      # count the number of non quantified labels per peptide
+      push(@labels, $label) if(isIdentifiedColumn($col, $label) == 1);
+    }
+  }
+  return @labels;
+}
+
+sub analyseData {
   # search for the column ids to add
-  $COL_QUANTINALL = addNewColumn($H_QUANTINALL, "Quan Info");
-  $COL_CVCALC = addNewColumn($H_CVCALC, "Quan Info");
-  $COL_FOUNDINALL = addNewColumn($H_FOUNDINALL, "Confidence \(by Search Engine\)");
+  $COL_QUANTINALL = addNewColumnAfterLast($H_QUANTINALL, "^Abundance: ");
+  $COL_CVCALC = addNewColumnAfterLast($H_CVCALC, $H_QUANTINALL);
+  $COL_FOUNDINALL = addNewColumnAfterLast($H_FOUNDINALL, "^Found in Sample: ");
+  
+  # get the columns and labels we will need
+  my @quantifiedColumns = getQuantifiedColumns();
+  my @quantifiedLabels = getQuantifiedLabels();
+  my @identifiedColumns = getIdentifiedColumns();
+  my @identifiedLabels = getIdentifiedLabels();
   
   my $nbGhostPeptides = 0;
   # now parse the data and compute the values for each peptide and each new column
@@ -193,20 +295,50 @@ sub addNewColumns {
     $DATA{$row}{$H_FOUNDINALL} = 0; # make sure there is a value here
     # looking for columns such as 'Abundance: F1: 127N, Sample' or 'Found in Sample: [S10] F1: 127N, Sample' (with 127N as a label)
     my @values;
-    foreach my $col (@HEADERS) {
-      foreach my $label (@VALID_LABELS) {
-        # count the number of non quantified labels per peptide
-        if(isQuantifiedColumn($col, $label) == 1) {
-          $DATA{$row}{$H_QUANTINALL}++ if($DATA{$row}{$col} ne "" && $DATA{$row}{$col} ne "0");
-          push(@values, $DATA{$row}{$col});
-        } elsif(isIdentifiedColumn($col, $label) == 1) {
-          $DATA{$row}{$H_FOUNDINALL}++ if($DATA{$row}{$col} eq "High");
-        }
-      }
+    # count the number of quantified labels per peptide
+    for(my $i = 0; $i < scalar(@quantifiedColumns); $i++) {
+      my $col = $quantifiedColumns[$i];
+      my $cell = $DATA{$row}{$col};
+      $DATA{$row}{$H_QUANTINALL}++ if($cell ne "" && $cell ne 0 && $cell ne "0.0");
+      push(@values, $cell);
     }
-    # compute the CV
+    # count the number of identified labels per peptide
+    for(my $i = 0; $i < scalar(@identifiedColumns); $i++) {
+      my $col = $identifiedColumns[$i];
+      my $label = $identifiedLabels[$i];
+      my $cell = $DATA{$row}{$col};
+      $DATA{$row}{$H_FOUNDINALL}++ if($cell eq "High");
+    }
+    # compute the CV before anything related to the summary
     my $cv = computeCV(@values);
     $DATA{$row}{$H_CVCALC} = $cv;
+    # now that quantified and identified labels are known and cvs are computed, directly create the summary
+    for(my $i = 0; $i < scalar(@quantifiedColumns); $i++) {
+      my $col = $quantifiedColumns[$i];
+      if($DATA{$row}{$col} ne "") {
+        addPlusOneToSummary("nbQ", $quantifiedLabels[$i], $row);
+        storeAbundanceToSummary($DATA{$row}{$col}, $quantifiedLabels[$i], $row);
+      }
+    }
+    if($DATA{$row}{$H_QUANTINALL} == 0) {
+      addPlusOneToSummary("nbQ", "N", $row);
+    } else {
+      addPlusOneToSummary("nbQ", "1+", $row);
+      addPlusOneToSummary("nbQ", "A", $row) if($DATA{$row}{$H_QUANTINALL} == $NB_VALID_LABELS);
+    }
+    addPlusOneToSummary("nbQ", $DATA{$row}{$H_QUANTINALL}, $row);
+    # do the same for identified columns
+    for(my $i = 0; $i < scalar(@identifiedColumns); $i++) {
+      my $col = $identifiedColumns[$i];
+      addPlusOneToSummary("nbI", $identifiedLabels[$i], $row) if($DATA{$row}{$col} eq "High");
+    }
+    if($DATA{$row}{$H_FOUNDINALL} == 0) {
+      addPlusOneToSummary("nbI", "N", $row);
+    } else {
+      addPlusOneToSummary("nbI", "1+", $row);
+      addPlusOneToSummary("nbI", "A", $row) if($DATA{$row}{$H_FOUNDINALL} == $NB_VALID_LABELS);
+    }
+    addPlusOneToSummary("nbI", $DATA{$row}{$H_FOUNDINALL}, $row);
     # this is a ghost peptide if it has not been identified anywhere
     $nbGhostPeptides++ if(!exists($DATA{$row}{$H_FOUNDINALL}) || $DATA{$row}{$H_FOUNDINALL} eq 0);
   }
@@ -234,15 +366,13 @@ sub doesColumnNameExist {
   return -1;
 }
 
-sub addNewColumn {
-  my ($newColumnName, $beforeColumn) = @_;
-  my $id = doesColumnNameExist($newColumnName);
-  if($id < 0) {
-    # the column did not already existed
-    $id = getColumnIdBySearch($beforeColumn) - 1;
-    splice(@HEADERS, $id, 0, $newColumnName);
-  }
-  return $id;
+sub addNewColumnAfterLast {
+  my ($newColumnName, $afterPattern) = @_;
+  my $i = 0;
+  while($HEADERS[$i] !~ m/$afterPattern/ && $i < scalar(@HEADERS)) { $i++; }
+  while($HEADERS[$i] =~ m/$afterPattern/ && $i < scalar(@HEADERS)) { $i++; }
+  splice(@HEADERS, $i, 0, $newColumnName);
+  return $i;
 }
 
 sub avg {
@@ -353,42 +483,13 @@ sub addGlobalSheet {
     $format = $formatHR if(isIdentifiedColumn($_) == 1 || $_ eq $H_FOUNDINALL);
     $worksheet->write(0, $colId++, $_, $format);
   }
-  # write the content of %DATA in the new sheet, and store/compute on the fly
+  # write the content of %DATA in the new sheet
   foreach my $row (keys(%DATA)) {
     $colId = 0;
     # store CV per category
     addCVsToSummary($row);
     foreach my $col (@HEADERS) {
       my $cell = $DATA{$row}{$col};
-      # gather relevant information
-      if($col eq $H_QUANTINALL) {
-        if($cell == 0) {
-          addPlusOneToSummary("nbQ", "N", $row);
-        } else {
-          addPlusOneToSummary("nbQ", "1+", $row);
-          addPlusOneToSummary("nbQ", "A", $row) if($cell == $NB_VALID_LABELS);
-        }
-        addPlusOneToSummary("nbQ", $cell, $row);
-      } elsif($col eq $H_FOUNDINALL) {
-        if($cell == 0) {
-          addPlusOneToSummary("nbI", "N", $row);
-        } else {
-          addPlusOneToSummary("nbI", "1+", $row);
-          addPlusOneToSummary("nbI", "A", $row) if($cell == $NB_VALID_LABELS);
-        }
-        addPlusOneToSummary("nbI", $cell, $row);
-      } else {
-        foreach my $label (@VALID_LABELS) {
-          if(isQuantifiedColumn($col, $label) == 1) {
-            if($cell ne "") {
-              addPlusOneToSummary("nbQ", $label, $row);
-              storeAbundanceToSummary($cell, $label, $row);
-            }
-          } elsif(isIdentifiedColumn($col, $label) == 1) {
-            addPlusOneToSummary("nbI", $label, $row) if($cell eq "High");
-          }
-        }
-      }
       # write the line
       $worksheet->write($row, $colId++, $cell);
     }
@@ -494,14 +595,17 @@ sub addSummarySheet {
       my $nbI = (exists($SUMMARY{$cat}{"nbI"}{$label}) ? $SUMMARY{$cat}{"nbI"}{$label} : 0);
       my $format = ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal);
       $worksheet->write($line++, $j + 2, $nbQ, $format);
-      $worksheet->write($line++, $j + 2, "", $format) if($ADD_PERCENTAGES eq "true");
-      $worksheet->write($line++, $j + 2, "", $format) if($ADD_PERCENTAGES eq "true");
+      $worksheet->write_blank($line++, $j + 2, $format) if($ADD_PERCENTAGES eq "true");
+      $worksheet->write_blank($line++, $j + 2, $format) if($ADD_PERCENTAGES eq "true");
       $worksheet->write($line++, $j + 2, $nbI, $format);
-      $worksheet->write($line++, $j + 2, "", $format) if($ADD_PERCENTAGES eq "true");
+      $worksheet->write_blank($line++, $j + 2, $format) if($ADD_PERCENTAGES eq "true");
       # add median abundances
       my $median = calcMedian($cat, $label);
-      $worksheet->write_number($line++, $j + 2, $median, $format);
-      $format = ($j == $NB_VALID_LABELS - 1 ? $fRatioLast : $fRatio);
+      if($median eq "") {
+        $worksheet->write_blank($line++, $j + 2, $format);
+      } else {
+        $worksheet->write_number($line++, $j + 2, $median, $format);
+      }
       # ratios will be written later
     }
     # Results per label category (percentages should be written as formula)
@@ -516,8 +620,8 @@ sub addSummarySheet {
       $worksheet->write_formula($line++, $column, "=".getAddress($row, $column)."/$adrNbIdentified", ($j == $NB_VALID_LABELS - 1 ? $fBorderRightPct : $fNormalPct)) if($ADD_PERCENTAGES eq "true");
       $worksheet->write($line++, $column, $nbI, ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
       $worksheet->write_formula($line++, $column, "=".getAddress($line - 2, $column)."/$adrNbIdentified", ($j == $NB_VALID_LABELS - 1 ? $fBorderRightPct : $fNormalPct)) if($ADD_PERCENTAGES eq "true");
-      $worksheet->write($line++, $column, "", ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
-      $worksheet->write($line++, $column, "", ($j == $NB_VALID_LABELS - 1 ? $fBorderBottomRight : $fBorderBottom));
+      $worksheet->write_blank($line++, $column, ($j == $NB_VALID_LABELS - 1 ? $fBorderRight : $fNormal));
+      $worksheet->write_blank($line++, $column, ($j == $NB_VALID_LABELS - 1 ? $fBorderBottomRight : $fBorderBottom));
     }
     $colId += $NB_VALID_LABELS;
     foreach my $j ("A", "1+", "N") {
@@ -529,8 +633,8 @@ sub addSummarySheet {
       $worksheet->write_formula($line++, $colId, "=".getAddress($row, $colId)."/$adrNbIdentified", ($j eq "N" ? $fQuantPctLast : $fQuantPct)) if($ADD_PERCENTAGES eq "true");
       $worksheet->write($line++, $colId, $nbI, ($j eq "N" ? $fIdentNumLast : $fIdentNum));
       $worksheet->write_formula($line++, $colId, "=".getAddress($line - 2, $colId)."/$adrNbIdentified", ($j eq "N" ? $fIdentPctLast : $fIdentPct)) if($ADD_PERCENTAGES eq "true");
-      $worksheet->write($line++, $colId, "", ($j eq "N" ? $fBorderRight : $fNormal));
-      $worksheet->write($line++, $colId++, "", ($j eq "N" ? $fBorderBottomRight : $fBorderBottom));
+      $worksheet->write_blank($line++, $colId, ($j eq "N" ? $fBorderRight : $fNormal));
+      $worksheet->write_blank($line++, $colId++, ($j eq "N" ? $fBorderBottomRight : $fBorderBottom));
     }
   }
   
