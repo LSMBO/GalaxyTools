@@ -42,7 +42,7 @@ sub entrezSearchAndFetch {
     # get total count if it's the first loop
     $total = $1 if($total == 0 && $output =~ /<Count>(\S+)<\/Count>/);
 
-    #parse IDs retrieved
+    # parse IDs retrieved
     my $ids = "";
     while ($output =~ /<Id>(\d+?)<\/Id>/sg) {
       $ids .= "&id=$1";

@@ -149,11 +149,11 @@ sub REST_POST_Uniprot_fasta {
         last;
       } elsif($code == 400 || $code == 500) {
         # these error codes do not mean the request was necessarily wrong, let's retry another time
-        LsmboFunctions::stdwarn("HTTP GET error code:$code with message: $message (attempt $nbTries/$NBTRIESTOTAL)");
+        LsmboFunctions::stdwarn("HTTP POST error code:$code with message: $message (attempt $nbTries/$NBTRIESTOTAL)");
         $nbTries++;
       } else {
         # any other error code should end the script (is it really necessary ?)
-        LsmboFunctions::stdwarn("HTTP GET error code:$code with message: $message");
+        LsmboFunctions::stdwarn("HTTP POST error code:$code with message: $message");
       }
       LsmboFunctions::stderr("Stopped trying to access Uniprot after $NBTRIESTOTAL attempts") if($nbTries == $NBTRIESTOTAL);
     }

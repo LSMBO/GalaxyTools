@@ -95,7 +95,7 @@ sub cleanProteinId {
   my ($entry) = @_;
   if(m/^..\|([^\|]+)\|[^ ]*/) {   # sp|P12345|PROTEIN_NAME => P12345
     return $1;
-  } elsif(m/.^.\|([^ ]+)/) {      # sp|P12345 => P12345
+  } elsif(m/^..\|([^ ]+)/) {      # sp|P12345 => P12345
     return $1;
   } else {
     return $entry;

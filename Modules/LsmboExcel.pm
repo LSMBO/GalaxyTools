@@ -131,7 +131,7 @@ sub isSheetNameValid {
   return LsmboFunctions::stdwarn("Excel sheet name '$sheetName' is not valid: name length must be less than 32 characters") if(length($sheetName) > 32);
   # must not start or end with an apostrophe
   return LsmboFunctions::stdwarn("Excel sheet name '$sheetName' is not valid: name cannot start with an apostrophe") if($sheetName =~ m/^'/);
-  return LsmboFunctions::stdwarn("Excel sheet name '$sheetName' is not valid: name cannt end with and apostrophe") if($sheetName =~ m/'$/);
+  return LsmboFunctions::stdwarn("Excel sheet name '$sheetName' is not valid: name cannot end with an apostrophe") if($sheetName =~ m/'$/);
   # must not contains []:*?/\
   return LsmboFunctions::stdwarn("Excel sheet name '$sheetName' is not valid: name cannot contain the characters [ ] : * ? \\ /") if($sheetName =~ m/[\[\]\:\*\?\/\\]/g);
   # the name seems ok, it just has to be unique but it's not checked here

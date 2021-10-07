@@ -18,7 +18,7 @@ sub getTotalCPUCount {
 }
 
 sub getNbCpu {
-  # default ration is 1/4 of all CPU
+  # default ratio is 1/4 of all CPU
   my $default = 0.25;
   my $ratio = $default;
   $ratio = $_[0] if(scalar(@_));
