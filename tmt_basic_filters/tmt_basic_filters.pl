@@ -395,7 +395,7 @@ sub stdev {
 
 # the standard deviation matches the one from the STANDARD formula in Excel
 sub computeCV {
-  my @values = grep { $_ ne '' } @_;
+  my @values = grep { $_ ne '' && $_ ne 0 } @_; # also remove values equal to 0
   return "" if(scalar(@values) == 0);
   my $avg = avg(@values);
   return $avg if($avg eq "n/a" || $avg == 0);
