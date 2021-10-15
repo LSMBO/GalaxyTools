@@ -52,7 +52,7 @@ if($PARAMS{"toolbox"}{"action"} eq "generate") {
     foreach my $fasta (@{$PARAMS{"toolbox"}{"input_fastas"}}) {
         push(@fastaFiles, $fasta);
     }
-    # also use the information from ARGV (anonymzed file path -> original file name)
+    # also use the information from ARGV (anonymized file path -> original file name)
     while(scalar(@mergingData) > 0) {
       my $file = shift(@mergingData); # this file is anonymized
       my $filename = shift(@mergingData); # original file name
@@ -143,7 +143,7 @@ close $fh;
 
 unlink($uniprotFasta) if(-f $uniprotFasta);
 
-#create the metadata file at the end
+# create the metadata file at the end
 my $metadataFile = createMetadataFile($fastaFile, $uniprotVersion, $nbConta, $nbTarget, $nbDecoy, \@removedProteinsBecauseSameId, \@removedProteinsBecauseSameSequence, \@removedProteinsBecauseSubSequence);
 
 # compress the files and return a zip file

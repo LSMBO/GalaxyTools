@@ -8,4 +8,4 @@ Once you have the fasta file generated, you can use it in the Fasta Toolbox to a
 
 **Important:**
 Make sure you run getAssemblies.pl at least once to generate the files refseq_macro.xml and refseq_ref.txt necessary to list the taxonomies.
-Ideally, you should use crontabl to run getAssembles.pl once a week.
+Ideally, you should use crontab to run getAssembles.pl once a week.

@@ -28,7 +28,7 @@ eval {
   foreach my $row (@rows) {
     if($row =~ m/^>(.*)/) {
       my $id = $1;
-      # clean the id if necessary (sp|P12345| must becore P12345)
+      # clean the id if necessary (sp|P12345| must become P12345)
       $id =~s/sp//;
       $id =~s/\|//g;
       # add the id to the file
@@ -36,7 +36,7 @@ eval {
       $nbIds++;
     }
   }
-  _log(scalar($nbIds)." cRAP identifiers have been retrieved");
+  _log("$nbIds cRAP identifiers have been retrieved");
   close $fh;
 
   # download the updated sequences in fasta format
@@ -49,11 +49,12 @@ eval {
   open($fh, "<", "$crapFile.tmp") or stderr("Can't open file '$crapFile.tmp': $!");
   my $nbContaminants = 0;
   while(<$fh>) {
+    chomp;
     if(m/^>(.*)/) {
-      print $out ">CON_".$1;
+      print $out ">CON_$1\n";
       $nbContaminants++;
     } else {
-      print $out $_;
+      print $out "$_\n";
     }
   }
   close $fh;
