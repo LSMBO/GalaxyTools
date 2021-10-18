@@ -219,7 +219,7 @@ sub getUniprotData {
         $symbol =~ s/;.*//; # only keep the first symbol
         $PROTEIN_NAME{$acc} = $name;
         my @goList = split(/; /, $goIds);
-        $keggIds =~ s/\://g;
+        #$keggIds =~ s/\://g;
         my @keggList = split(/;/, $keggIds);
         foreach my $geneId (split(/;/, $geneIds)) {
             $DATA{$geneId}{"acc"} = $acc; # SwissProt accession.txt
@@ -247,8 +247,8 @@ sub getKeggTaxonomy {
     foreach my $id (keys(%DATA)) {
         foreach my $keggId (@{$DATA{$id}{"kegg"}}) {
             $name = $keggId;
-            # $name =~ s/:.*//; # hsa:71 => hsa
-            $name =~ s/\d+$//; # hsa71 => hsa
+            $name =~ s/:.*//; # hsa:71 => hsa
+            #$name =~ s/\d+$//; # hsa71 => hsa
         }
         last if($name ne ""); # stop after first match
     }
@@ -276,7 +276,9 @@ sub getKeggPathways {
     if ($response->is_success) {
         foreach my $line (split(/\n/, $response->decoded_content)) {
             # path:hsa04610	Complement and coagulation cascades - Homo sapiens (human)
-            $line =~ m/path:($taxonomy\d*)\t(.*)/;
+            # path:ath00010	Glycolysis / Gluconeogenesis - Arabidopsis thaliana (thale cress)
+            # $line =~ m/path:($taxonomy\d*)\t(.*)/;
+            $line =~ m/path:($taxonomy.*)\t(.*)/;
             $KEGG_NAMES{$1} = $2;
         }
     } else {
@@ -304,7 +306,9 @@ sub linkKeggPathways {
     if ($response->is_success) {
         foreach my $line (split(/\n/, $response->decoded_content)) {
             # hsa:71	path:hsa04520
-            $line =~ m/($taxonomy):(\d+)\tpath:($taxonomy\d+)/;
+            # ath:AT1G01090	path:ath00010
+            # $line =~ m/($taxonomy):(\d+)\tpath:($taxonomy\d+)/;
+            $line =~ m/($taxonomy):(.+)\tpath:($taxonomy.+)/;
             push(@{$KEGG_LINKS{"$1$2"}}, $3);
         }
     } else {
