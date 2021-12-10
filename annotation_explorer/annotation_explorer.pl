@@ -144,7 +144,7 @@ sub retrieveFromUniprot {
     my ($file, $from) = @_;
 
     print "Sending protein list $file to Uniprot, identifiers are $from\n";
-    my $columns = "id,entry name,protein names,genes,organism,go(biological process),go(cellular component),go(molecular function),go-id";
+    my $columns = "id,entry name,protein names,genes(PREFERRED),organism,go(biological process),go(cellular component),go(molecular function),go-id";
 
     my %fullGoList;
     # my %lines = %{REST_POST_Uniprot($file, "tab", $from, "ACC", $columns)};
