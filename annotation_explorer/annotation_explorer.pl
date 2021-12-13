@@ -144,7 +144,7 @@ sub retrieveFromUniprot {
     my ($file, $from) = @_;
 
     print "Sending protein list $file to Uniprot, identifiers are $from\n";
-    my $columns = "id,entry name,protein names,genes(PREFERRED),organism,go(biological process),go(cellular component),go(molecular function),go-id";
+    my $columns = "id,entry name,protein names,genes(PREFERRED),genes(ALTERNATIVE),organism,go(biological process),go(cellular component),go(molecular function),go-id";
 
     my %fullGoList;
     # my %lines = %{REST_POST_Uniprot($file, "tab", $from, "ACC", $columns)};
@@ -156,7 +156,7 @@ sub retrieveFromUniprot {
     # parse output
     foreach my $key (keys(%lines)) {
         my @items = @{$lines{$key}};
-        foreach my $go (split("; ", $items[9])) {
+        foreach my $go (split("; ", $items[10])) {
             $fullGoList{$go} = 1;
         }
     }
@@ -282,7 +282,8 @@ sub addMainSheet {
     writeExcelLine($worksheet, $rowNumber++, "Accession number", "The accession number used for this line");
     writeExcelLine($worksheet, $rowNumber++, "Protein name", "The corresponding protein name");
     writeExcelLine($worksheet, $rowNumber++, "Description", "The corresponding protein description");
-    writeExcelLine($worksheet, $rowNumber++, "Gene names", "The recommended name is used to officially represent a gene. However, in many cases, more than one name have been assigned to a specific gene. We therefore make a distinction between the name which we believe should be used as the recommended gene name (official gene symbol) and the other names which we list in the 'Synonyms' subsection");
+    writeExcelLine($worksheet, $rowNumber++, "Gene names (primary)", "The recommended name is used to officially represent a gene. However, in many cases, more than one name have been assigned to a specific gene. We therefore make a distinction between the name which we believe should be used as the recommended gene name (official gene symbol) and the other names which we list in the 'Synonyms' subsection");
+    writeExcelLine($worksheet, $rowNumber++, "Gene names (synonyms)", "");
     writeExcelLine($worksheet, $rowNumber++, "Organism", "The organism designation consists of the Latin scientific name, usually composed of the genus and species names (the binomial system developed by Linnaeus), followed optionally by the English common name and a synonym.");
     writeExcelLine($worksheet, $rowNumber++, "Categories", "");
     
@@ -308,7 +309,7 @@ sub addProteinSheet {
     # my $rowNumber = 0;
     my $worksheet = $workbook->add_worksheet("Proteins");
     
-    my @headers = ("Identifier used", "Accession number", "Protein name", "Description", "Gene names", "Organism");
+    my @headers = ("Identifier used", "Accession number", "Protein name", "Description", "Gene names (primary)", "Gene names (synonyms)", "Organism");
     push(@headers, "Categories") if($addCategories eq "1");
     push(@headers, "Cellular component ontology", "Cellular component ancestors", "Cellular component graphic tree view",
                    "Molecular function ontology", "Molecular function ancestors", "Molecular function graphic tree view",
@@ -323,11 +324,11 @@ sub addProteinSheet {
     my %output = %{$data};
     foreach my $key (keys(%output)) {
         next if($key eq UNIPROT_RELEASE());
-        my ($user_entry, $entry, $entry_name, $prot_names, $gene_names, $organism, $go_bp, $go_cc, $go_mf, $go_ids) = @{$output{$key}};
+        my ($user_entry, $entry, $entry_name, $prot_names, $gene_names, $synonyms, $organism, $go_bp, $go_cc, $go_mf, $go_ids) = @{$output{$key}};
         my @biologicalProcess = extractGos($go_bp);
         my @cellularComponent = extractGos($go_cc);
         my @molecularFunction = extractGos($go_mf);
-        my @row = ($user_entry, $entry, $entry_name, $prot_names, $gene_names, $organism);
+        my @row = ($user_entry, $entry, $entry_name, $prot_names, $gene_names, $synonyms, $organism);
         # list all the categories related to this protein
         if($addCategories eq "1") {
             my %allCategories; # use a hash to avoid redondant categories
@@ -351,7 +352,7 @@ sub addProteinSheet {
         }
     }
     
-    setColumnsWidth($worksheet, 25, 10, 18, 20, 20, 18, 40, 18, 18, 18, 18, 18, 18, 18, 18, 18);
+    setColumnsWidth($worksheet, 25, 10, 18, 20, 20, 18, 18, 40, 18, 18, 18, 18, 18, 18, 18, 18, 18);
 }
 
 sub addGoTermSheet {

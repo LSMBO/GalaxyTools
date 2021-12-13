@@ -89,7 +89,7 @@ my %linesPerId = %{$linesPerIdPtr};
 my %output;
 if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     # Retrieve protein information from Uniprot website
-    my $columns = "id,entry name,reviewed,protein names,organism-id,genes(PREFERRED),ec";
+    my $columns = "id,entry name,reviewed,protein names,organism-id,genes(PREFERRED),genes(ALTERNATIVE),ec";
     $columns .= ",database(GeneID),created,last-modified,sequence-modified";
     $columns .= ",database(OrthoDB)" if($addOrthoDb eq "true");
     $columns .= ",database(InterPro)" if($addInterPro eq "true");
@@ -149,12 +149,12 @@ my @headers;
 my @dateCellIds;
 my $formatForDates = $workbook->add_format( num_format => 'd mmmm yyyy' ); # 2 Feb 2002
 if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
-    @headers = ("User entry", "Entry", "Entry name", "Reviewed", "Description", "Organism", "Gene name", "EC number");
+    @headers = ("User entry", "Entry", "Entry name", "Reviewed", "Description", "Organism", "Gene name (primary)", "Gene name (synonyms)", "EC number");
     push(@headers, "GeneId", "Creation date", "Last update", "Last sequence update");
     push(@headers, "OrthoDB orthologous groups") if($addOrthoDb eq "true");
     push(@headers, "InterPro family identifiers", "InterPro family names") if($addInterPro eq "true");
     push(@headers, UNIPROT_RELEASE().": ".$output{UNIPROT_RELEASE()}) if(exists($output{UNIPROT_RELEASE()}));
-    @dateCellIds = (9, 10, 11);
+    @dateCellIds = (10, 11, 12);
 } else {
     @headers = ("User entry", "Locus", "Identifier", "Description", "Reviewed", "Organism", "Gene name", "GeneId", "Source", "Creation date", "Last update", "NCBI protein database release: ".getNcbiRelease("protein"));
     @dateCellIds = (9, 10);
@@ -167,13 +167,13 @@ foreach my $key (keys(%output)) {
     my @cells = @{$output{$key}};
     if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
         # we need to adjust the dates for excel: 2021-04-07 -> 2021-04-07T
-        $cells[9] .= "T";
         $cells[10] .= "T";
         $cells[11] .= "T";
+        $cells[12] .= "T";
     }
     # format orthoDB data if requested
     if($addOrthoDb eq "true") {
-        my $orthoId = 12;
+        my $orthoId = 13;
         if($cells[$orthoId] ne "") {
             my @orthoNames;
             foreach my $oid (split(";", $cells[$orthoId])) {
@@ -184,7 +184,7 @@ foreach my $key (keys(%output)) {
     }
     # format interpro data if requested
     if($addInterPro eq "true") {
-        my $interId = ($addOrthoDb eq "true" ? 13 : 12);
+        my $interId = ($addOrthoDb eq "true" ? 14 : 13);
         if($cells[$interId] ne "") {
             my @ids; my @names;
             foreach my $id (split(";", $cells[$interId])) {
@@ -218,7 +218,7 @@ foreach my $key (keys(%linesPerId)) {
 
 # add column sizes
 if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
-    setColumnsWidth($worksheet, 25, 15, 15, 10, 15, 10, 15, 10, 10, 20, 20, 20, 30, 30, 30, 30);
+    setColumnsWidth($worksheet, 25, 15, 15, 10, 15, 10, 15, 15, 10, 10, 20, 20, 20, 30, 30, 30, 30);
 } else {
     setColumnsWidth($worksheet, 15, 15, 15, 15, 15, 15, 15, 10, 15, 20, 20, 50);
 }
