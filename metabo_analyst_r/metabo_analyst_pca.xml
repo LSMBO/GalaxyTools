@@ -1,0 +1,54 @@
+<tool id="metabo_analyst_pca" name="MetaboAnalyst PCA" version="1.0.2">
+    <description>PCA analysis using MetaboAnalyst</description>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/metabo_analyst_pca.pl '$inputFile' ${condFormat.imgFormat} ${condFormat.dpi} 
+        #if $condFormat.imgFormat == 'svg':
+            '$output1_svg' '$output2_svg'
+        #else:
+            '$output1_png' '$output2_png'
+        #end if
+    ]]></command>
+    <inputs>
+        <!-- upload csv file -->
+        <param format="txt" name="inputFile" type="data" label="CSV file" multiple="false"/>
+        <!-- output file format -->
+        <conditional name="condFormat">
+            <param name="imgFormat" type="select" display="radio" label="Output files format">
+                <option value="png" selected="true">PNG format (classic image format)</option>
+                <option value="svg">SVG format (scalable vector image that can be edited later)</option>
+            </param>
+            <when value="svg">
+                <param name="dpi" label="Image DPI" type="integer" value="72" help="The DPI is the number of dots per inch, a dpi of 72 is suggested for scalar images" />
+            </when>
+            <when value="png">
+                <param name="dpi" label="Image DPI" type="integer" value="300" help="The DPI is the number of dots per inch, a dpi of 300 is suggested for high-resolution images" />
+            </when>
+        </conditional>
+    </inputs>
+    <outputs>
+        <data format="svg" name="output1_svg" label="${inputFile.display_name}-PairSummary">
+            <filter>condFormat['imgFormat'] == 'svg'</filter>
+        </data>
+        <data format="svg" name="output2_svg" label="${inputFile.display_name}-2DScore">
+            <filter>condFormat['imgFormat'] == 'svg'</filter>
+        </data>
+        <data format="png" name="output1_png" label="${inputFile.display_name}-PairSummary">
+            <filter>condFormat['imgFormat'] == 'png'</filter>
+        </data>
+        <data format="png" name="output2_png" label="${inputFile.display_name}-2DScore">
+            <filter>condFormat['imgFormat'] == 'png'</filter>
+        </data>
+    </outputs>
+    <tests>
+        <test>
+        </test>
+    </tests>
+    <help><![CDATA[
+
+    ]]></help>
+    <citations>
+      
+    </citations>
+</tool>
+
+
