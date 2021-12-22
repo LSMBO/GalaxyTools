@@ -186,7 +186,7 @@ sub writeExcelFile {
     my $rowNumber = 0;
     my $workbook;
     my $worksheet;
-    my @headers = ("Protein query", "Protein match", "Score", "Identity", "Similary", "Description", "", $databaseVersion);
+    my @headers = ("Protein query", "Protein match", "Score", "E-value", "Identity", "Similary", "Description", "", $databaseVersion);
     if($PARAMS{"output"}{"format"} eq "xlsx") {
         if($PARAMS{"proteins"}{"source"} ne "xlsx") {
             $workbook = Excel::Writer::XLSX->new($outputFile);
@@ -226,10 +226,10 @@ sub writeExcelFile {
             next if(m/^\+\-/);
             if(m/^[a-zA-Z]/ && $nb < $nbResultsPerProtein) {
                 # CON_sp|P00760|TRY1_BOVIN Cationic trypsin OS=Bos tauru       ( 246) 1375 472.3 3.2e-136\t0.823 0.970 1375  231    1  231    1  231   16  246    1  246   0   0   0
-                # id=TRY1_BOVIN, acc=P00760, score=1375, identity=0.823, similary=0.970
+                # id=TRY1_BOVIN, acc=P00760, score=1375, identity=0.823, similary=0.970, e-value=3.2e-136
                 my @items = extractItems($_);
                 my $acc = $items[0];
-                my @cells = ($query, $acc, $items[2], $items[5], $items[6], $descriptions{$acc});
+                my @cells = ($query, $acc, $items[2], $items[4], $items[5], $items[6], $descriptions{$acc});
                 if($PARAMS{"output"}{"format"} eq "xlsx") {
                     writeExcelLine($worksheet, $rowNumber++, @cells);
                 } else {
