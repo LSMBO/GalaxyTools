@@ -8,6 +8,7 @@ use LsmboFunctions qw(booleanToString parameters stderr);
 use LsmboExcel qw(addWorksheet getValue);
 
 use List::MoreUtils qw(uniq);
+use Sort::Naturally;
 use Statistics::Basic qw(median);
 use Text::CSV qw( csv );
 
@@ -27,6 +28,7 @@ if(exists($PARAMS{"cvcats"})) {
 }
 my $PEP_THRESHOLD = (exists($PARAMS{"threshold"}) ? $PARAMS{"threshold"} : 0.95);
 my $ADD_PERCENTAGES = (exists($PARAMS{"addPct"}) ? booleanToString($PARAMS{"addPct"}) : "false"); # this option is not in the xml file (and may never be)
+my $REMOVE_DUPLICATES = (exists($PARAMS{"remove_duplicates"}) ? booleanToString($PARAMS{"remove_duplicates"}) : "false"); # this option should be added in the xml file
 
 my %DATA;
 my @HEADERS;
@@ -79,16 +81,19 @@ sub main {
   # determine the number of TMT label columns, and which columns to ignore (check the columns 'Found in Sample' where 'Not Found' is over 95% of the values, maybe use a user value instead of 95)
   determineValidTMTLabelColumns();
   
+  # delete duplicate peptides from %DATA
+  my ($nbDuplicatePeptides, $nbRowsRemoved) = filterData();
+  
   # add columns 'Quantified in all' and 'CVs calculation' after the columns 'Abundance: '
   # add column 'Found in all' after the columns 'Found in Sample: '
   # also create the summary on the fly
   analyseData();
-  
+
   # put the results in a Excel file
   my $workbook = createExcelFile($inputFile, $outputFile);
   addGlobalSheet($workbook);
   addCategorySheet($workbook);
-  addSummarySheet($workbook);
+  addSummarySheet($workbook, $nbDuplicatePeptides, $nbRowsRemoved);
   print "Closing output file\n";
   $workbook->close();
 }
@@ -270,6 +275,44 @@ sub getIdentifiedLabels {
     }
   }
   return @labels;
+}
+
+sub filterData {
+  # do nothing if user chose not to
+  return (0, 0) if($REMOVE_DUPLICATES eq "false");
+  # create a map with peptide sequences as key and an array of row numbers corresponding to that sequence
+  my %peptideExistence;
+  foreach my $row (keys(%DATA)) {
+    # get the peptide and store it in the hash along with its row number
+    my $peptide = $DATA{$row}{"Annotated Sequence"};
+    push(@{$peptideExistence{$peptide}}, $row);
+  }
+  # filter %DATA to remove all the duplicate peptides
+  my $nbDuplicatePeptides = 0;
+  my $nbRowsRemoved = 0;
+  foreach my $seq (keys(%peptideExistence)) {
+    my @rows = @{$peptideExistence{$seq}};
+    if(scalar(@rows) > 1) {
+      $nbDuplicatePeptides++;
+      foreach my $row (@rows) {
+        # print "ABU delete row $row\n";
+        delete $DATA{$row};
+        $nbRowsRemoved++;
+      }
+    }
+  }
+  # reorder %DATA to make sure the row numbers are consecutive
+  my @keys = nsort(keys(%DATA)); # this contains all the remaining row numbers
+  for(my $i = 0; $i < scalar(@keys); $i++) {
+    if($keys[$i] != $i+1) {
+      # print "ABU move row ".$keys[$i]." to ".($i+1)."\n";
+      $DATA{$i + 1} = $DATA{$keys[$i]}; # store the value that we want to move in its new position
+      delete $DATA{$keys[$i]}; # delete the entry from its old position
+    }
+  }
+  # return the number of duplicate peptides that have been removed
+  print "$nbDuplicatePeptides duplicate peptides have been found and removed, corresponding to $nbRowsRemoved rows in total\n";
+  return ($nbDuplicatePeptides, $nbRowsRemoved);
 }
 
 sub analyseData {
@@ -497,7 +540,7 @@ sub addGlobalSheet {
 }
 
 sub addSummarySheet {
-  my ($workbook) = @_;
+  my ($workbook, $nbDuplicatePeptides, $nbRowsRemoved) = @_;
   print "Adding sheet 'Summary'\n";
   my $worksheet = addWorksheet($workbook, "Summary");
 
@@ -658,6 +701,11 @@ sub addSummarySheet {
       $worksheet->write_formula($row + $nbInfo - 1, $j + 2, "=".getAddress($row + $nbInfo - 2, $j + 2)."/".$adrDenomMedian, $format);
     }
   }
+  # add info about removed duplicate peptides
+  $worksheet->write($lastRow + 5, 0, "Number of duplicate peptides removed:");
+  $worksheet->write($lastRow + 5, 1, $nbDuplicatePeptides, $formatLeft);
+  $worksheet->write($lastRow + 6, 0, "Number of rows removed:");
+  $worksheet->write($lastRow + 6, 1, $nbRowsRemoved, $formatLeft);
   
   # set columns width: 25 55 12..12
   $worksheet->set_column(0, 0, 25);

@@ -1,4 +1,4 @@
-<tool id="tmt_basic_filters" name="TMT basic filters" version="1.1.10">
+<tool id="tmt_basic_filters" name="TMT basic filters" version="1.1.11">
     <description>Process Proteome Discoverer TMT analyses</description>
     <requirements>
     </requirements>
@@ -15,6 +15,7 @@
         <param name="cvcats" type="text" label="CV categories" value="5 10 15 20 40 60" help="Set CV values that will be used for categories. For instance '5 10' will produce three categories: 'Below 5%', 'Between 5% and 10%' and '10% and more'. End with '100' if you want a category for CVs that are exactly at 100%">
             <validator type="regex" message="Integer values between 0 and 100, separated by a 'space' character">^([0-9]+\s+)*[0-9]+$</validator>
         </param>
+        <param name="remove_duplicates" checked="yes" label="Remove duplicate peptides" type="boolean" display="checkboxes" help="All duplicate peptides will be removed prior to any computation."></param>
     </inputs>
     <outputs>
       <data format="xlsx" name="output" label="TMT Basic Filters: ${inputFile.display_name}" />
