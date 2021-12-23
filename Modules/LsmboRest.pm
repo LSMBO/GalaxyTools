@@ -70,7 +70,7 @@ sub REST_POST_Uniprot_tab {
   my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
   push @{$agent->requests_redirectable}, 'POST';
   my $params = ['format' => 'tab', 'from' => $from, 'to' => 'ACC', 'columns' => $columns];
-  push(@$params, 'taxon' => $taxo) if(scalar(@_) == 6 && $taxo ne "");
+  push(@$params, 'taxon' => $taxo) if(scalar(@_) == 4 && $taxo ne "");
   my $nbColumns = scalar(split(",", $columns));
   
   my %output;
