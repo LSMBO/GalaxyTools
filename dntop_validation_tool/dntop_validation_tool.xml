@@ -23,7 +23,7 @@
         </section>
         <param name="ptm1" label="First modification" type="text" value="TMPP_Ac (Any N-term)" />
         <param name="ptm2" label="Second modification" type="text" value="TMPP_C13 (Any N-term)" />
-        <param name="deltaRt" label="Delta RT" type="integer" value="30" help="Value in seconds" />
+        <param name="deltaRT" label="Delta RT" type="integer" value="30" help="Value in seconds" />
         <section name="jokers" title="Amino acid with ambiguous masses" expanded="true" help="">
           <param name="B" type="boolean" display="checkboxes" checked="no" label="Consider that D and N are the same amino acid (1Da of difference)" />
           <param name="J" type="boolean" display="checkboxes" checked="yes" label="Consider that I and L are the same amino acid (same mass)" />
