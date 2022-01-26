@@ -32,11 +32,11 @@ my $MODTAG1 = "-Mod1";
 my $MODTAG2 = "-Mod2";
 
 # quick access to columns
-my $cPep = $PARAMS{"columns"}{"cPep"};
-my $cSeq = $PARAMS{"columns"}{"cSeq"};
-my $cMod = $PARAMS{"columns"}{"cMod"};
-my $cQid = $PARAMS{"columns"}{"cQid"};
-my $cDpm = $PARAMS{"columns"}{"cDpm"};
+my $cPep = getColumnName("cPep");
+my $cSeq = getColumnName("cSeq");
+my $cMod = getColumnName("cMod");
+my $cQid = getColumnName("cQid");
+my $cDpm = getColumnName("cDpm");
 my $cRT = $PARAMS{"columns"}{"cRT"};
 
 # we will add the following columns to the hash (only the last one will be kept in the output file)
@@ -114,6 +114,12 @@ print "Correct ending of the script\n";
 
 exit;
 
+sub getColumnName {
+  my $column = $PARAMS{"columns"}{$_[0]};
+  $column =~ s/__pd__/\#/;
+  return $column;
+}
+
 sub readInputFileXlsx {
   # print STDERR "Reading Excel input file\n";
   print "Reading Excel input file\n";
@@ -133,7 +139,8 @@ sub readInputFileXlsx {
   }
   # make sure we find the following columns: peptide_id, sequence, modifications, spectrum_title, #databank_protein_matches, rt
   foreach my $col ("cPep", "cSeq", "cMod", "cQid", "cDpm", "cRT") {
-    stderr("'".$PARAMS{"columns"}{$col}."' column is not found") if(!grep { $_ eq $PARAMS{"columns"}{$col}} @HEADERS );
+    my $columnName = getColumnName($col);
+    stderr("'$columnName' column is not found") if(!grep { $_ eq $columnName} @HEADERS );
   }
   # now read the content of the table
   my $lastSpectrumId = 1;
