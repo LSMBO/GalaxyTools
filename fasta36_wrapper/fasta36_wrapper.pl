@@ -224,7 +224,7 @@ sub writeExcelFile {
             }
             next if($skip == 1);
             next if(m/^\+\-/);
-            if(m/^[a-zA-Z]/ && $nb < $nbResultsPerProtein) {
+            if(m/^[0-9a-zA-Z]/ && $nb < $nbResultsPerProtein) {
                 # CON_sp|P00760|TRY1_BOVIN Cationic trypsin OS=Bos tauru       ( 246) 1375 472.3 3.2e-136\t0.823 0.970 1375  231    1  231    1  231   16  246    1  246   0   0   0
                 # id=TRY1_BOVIN, acc=P00760, score=1375, identity=0.823, similary=0.970, e-value=3.2e-136
                 my @items = extractItems($_);
