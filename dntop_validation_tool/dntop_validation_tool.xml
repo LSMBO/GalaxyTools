@@ -1,0 +1,53 @@
+<tool id="dntop_validation_tool" name="dN-TOP Validation Tool" version="1.0.0">
+    <description>It does something, eventually</description>
+    <command detect_errors="exit_code"><![CDATA[
+        perl $__tool_directory__/dntop_validation_tool.pl '$inputs' '$output'
+    ]]></command>
+    <configfiles>
+        <inputs name="inputs"  data_style="paths" />
+    </configfiles>
+    <inputs>
+        <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" help="The file is expected to be exported from Proline" />
+        <param name="sheetNumber" label="Number of the sheet containing the protein identifiers" type="integer" value="1" help="" />
+        <section name="columns" title="Column names" expanded="false" >
+            <param name="cPep" label="Peptide unique identifier" type="text" value="peptide_id" help="values should look like '640478'" />
+            <param name="cSeq" label="Peptide sequence" type="text" value="sequence" help="values should look like 'IAGVLSR'" />
+            <param name="cMod" label="Modifications within the sequence" type="text" value="modifications" help="values should look like 'Carbamidomethyl (C7); TMPP_Ac (Any N-term)'" />
+            <param name="cQid" label="Initial query id" type="text" value="initial_query_id" help="values should be unique for each spectrum and are shorter than spectrum titles" />
+            <param name="cDpm" label="Number of protein matches" type="text" value="#databank_protein_matches" help="values must be numeric" />
+            <param name="cRT" label="Retention time" type="text" value="rt" help="values should be in seconds" />
+            <param name="rtUnit" type="select" label="Retention time unit">
+              <option value="min" selected="true">Minutes</option>
+              <option value="sec">Seconds</option>
+            </param>
+        </section>
+        <param name="ptm1" label="First modification" type="text" value="TMPP_Ac (Any N-term)" />
+        <param name="ptm2" label="Second modification" type="text" value="TMPP_C13 (Any N-term)" />
+        <param name="deltaRt" label="Delta RT" type="integer" value="30" help="Value in seconds" />
+        <section name="jokers" title="Amino acid with ambiguous masses" expanded="true" help="">
+          <param name="B" type="boolean" display="checkboxes" checked="no" label="Consider that D and N are the same amino acid (1Da of difference)" />
+          <param name="J" type="boolean" display="checkboxes" checked="yes" label="Consider that I and L are the same amino acid (same mass)" />
+        </section>
+    </inputs>
+    <outputs>
+        <data format="xlsx" name="output" label="dNTOP-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+    <tests>
+        <test>
+        </test>
+    </tests>
+    <help><![CDATA[
+    
+**What it does**
+
+dN-TOP Validation Tool is designed to extract peptide pairs with two different chemical derivatizations from an export coming from Proline Studio (http://proline.profiproteomics.fr/, ProFI, French Proteomics Infrastructure).
+
+It was developed to automate our light/heavy TMPP-based N-terminomics workflow, dN-TOP, and can also be used for any other mass adducts or PTMs. A couple of light and heavy TMPP-derivatized peptides is validated only if the identification of the light/heavy pair of the same peptide sequence, with identical modifications and close elution time is made. N-termini positions are validated only if the spectra used for the identification provides an unambiguous peptide sequence and, if any, the exact position of a modification. Validated couples of light and heavy TMPP-derivatized peptides are extracted and listed on a new sheet and the unicity of the peptide sequence in the searched database is indicated.
+
+    ]]></help>
+    <citations>
+        <citation type="doi">10.1093/nar/gkaa1100</citation>
+        <citation type="doi">10.1093/bioinformatics/btp536</citation>
+        <citation type="doi">10.1093/bioinformatics/btn615</citation>
+    </citations>
+</tool>

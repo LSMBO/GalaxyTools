@@ -1,0 +1,20 @@
+{
+  "excelFile": "./test.xlsx",
+  "sheetNumber": 1,
+  "columns": {
+    "cPep": "peptide_id",
+    "cSeq": "sequence",
+    "cMod": "modifications",
+    "cQid": "initial_query_id",
+    "cDpm": "#databank_protein_matches",
+    "cRT": "rt",
+    "rtUnit": "min"
+  },
+  "ptm1": "TMPP_Ac (Any N-term)",
+  "ptm2": "TMPP_C13 (Any N-term)",
+  "deltaRT": 30,
+  "jokers": {
+    "B": false,
+    "J": true
+  }
+}
