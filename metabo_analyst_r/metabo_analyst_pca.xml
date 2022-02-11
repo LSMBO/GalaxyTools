@@ -1,54 +1,111 @@
-<tool id="metabo_analyst_pca" name="MetaboAnalyst PCA" version="1.0.2">
-    <description>PCA analysis using MetaboAnalyst</description>
-    <command detect_errors="exit_code"><![CDATA[
-        perl $__tool_directory__/metabo_analyst_pca.pl '$inputFile' ${condFormat.imgFormat} ${condFormat.dpi} 
-        #if $condFormat.imgFormat == 'svg':
-            '$output1_svg' '$output2_svg'
-        #else:
-            '$output1_png' '$output2_png'
-        #end if
-    ]]></command>
-    <inputs>
-        <!-- upload csv file -->
-        <param format="txt" name="inputFile" type="data" label="CSV file" multiple="false"/>
-        <!-- output file format -->
-        <conditional name="condFormat">
-            <param name="imgFormat" type="select" display="radio" label="Output files format">
-                <option value="png" selected="true">PNG format (classic image format)</option>
-                <option value="svg">SVG format (scalable vector image that can be edited later)</option>
-            </param>
-            <when value="svg">
-                <param name="dpi" label="Image DPI" type="integer" value="72" help="The DPI is the number of dots per inch, a dpi of 72 is suggested for scalar images" />
-            </when>
-            <when value="png">
-                <param name="dpi" label="Image DPI" type="integer" value="300" help="The DPI is the number of dots per inch, a dpi of 300 is suggested for high-resolution images" />
-            </when>
-        </conditional>
-    </inputs>
-    <outputs>
-        <data format="svg" name="output1_svg" label="${inputFile.display_name}-PairSummary">
-            <filter>condFormat['imgFormat'] == 'svg'</filter>
-        </data>
-        <data format="svg" name="output2_svg" label="${inputFile.display_name}-2DScore">
-            <filter>condFormat['imgFormat'] == 'svg'</filter>
-        </data>
-        <data format="png" name="output1_png" label="${inputFile.display_name}-PairSummary">
-            <filter>condFormat['imgFormat'] == 'png'</filter>
-        </data>
-        <data format="png" name="output2_png" label="${inputFile.display_name}-2DScore">
-            <filter>condFormat['imgFormat'] == 'png'</filter>
-        </data>
-    </outputs>
-    <tests>
-        <test>
-        </test>
-    </tests>
-    <help><![CDATA[
+<tool id="metabo_analyst_pca" name="MetaboAnalyst PCA" version="1.1.0">
+  <description>PCA analysis using MetaboAnalyst</description>
+  <command detect_errors="exit_code"><![CDATA[
+    perl $__tool_directory__/metabo_analyst_pca.pl '$inputs'
+    #if $condFormat.imgFormat == 'svg':
+      '$output1_svg' '$output2_svg'
+    #else:
+      '$output1_png' '$output2_png'
+    #end if
+  ]]></command>
+  <configfiles>
+      <inputs name="inputs"  data_style="paths" />
+  </configfiles>
+  <inputs>
+    <!-- input file -->
+    <conditional name="condInput">
+      <param name="inputFormat" type="select" display="radio" label="Input file format">
+          <option value="maxquant_txt">Maxquant text file</option>
+          <option value="maxquant_xlsx">Maxquant Excel file</option>
+          <option value="proline">Proline Excel file</option>
+          <option value="xlsx">Excel file</option>
+      </param>
+      <when value="maxquant_txt">
+        <param format="txt" name="inputFile" type="data" label="Maxquant text file" multiple="false" help="Only the columns starting with 'LFQ intensity' will be considered"/>
+      </when>
+      <when value="maxquant_xlsx">
+        <param format="xlsx" name="inputFile" type="data" label="Maxquant Excel file" multiple="false" help="Only the columns starting with 'LFQ intensity' will be considered"/>
+        <param name="sheetNumber" label="Number of the sheet containing the data" type="integer" value="1" help="" />
+      </when>
+      <when value="proline">
+        <param format="xlsx" name="inputFile" type="data" label="Proline Excel file" multiple="false" help="Only the columns starting with 'abundance' or 'raw_abundance' will be considered"/>
+        <param name="sheetNumber" label="Number of the sheet containing the data" type="integer" value="1" help="" />
+        <param name="preferRawAbundance" checked="no" label="Prefer raw abundances" type="boolean" display="checkboxes" help="Use columns starting with 'raw_abundance' rather than 'abundance' if they are found"></param>
+      </when>
+      <when value="xlsx">
+        <param format="xlsx" name="inputFile" type="data" label="Excel file" multiple="false"/>
+        <param name="sheetNumber" label="Number of the sheet containing the data" type="integer" value="1" help="" />
+        <param name="columnProteinId" label="Protein identifier column" type="text" value="A" help="The letter representing the column with protein identifiers">
+          <validator type="regex" message="Only letters are allowed">^[a-zA-Z]+$</validator>
+        </param>
+        <param name="columnsSamplesStart" label="Samples first column" type="text" value="" help="The letter representing the first column containing the abundances you want">
+          <validator type="regex" message="Only letters are allowed">^[a-zA-Z]+$</validator>
+        </param>
+        <param name="columnsSamplesStop" label="Samples last column" type="text" value="" help="The letter representing the last column containing the abundances you want">
+          <validator type="regex" message="Only letters are allowed">^[a-zA-Z]+$</validator>
+        </param>
+      </when>
+    </conditional>
+    <!-- filter decoy entries -->
+    <conditional name="condFilterDecoy">
+      <param name="decoy" checked="no" label="Filter decoy entries" type="boolean" display="checkboxes" help="Remove protein entries matching a given pattern"></param>
+      <when value="yes">
+        <param name="decoyTag" label="Decoy tag" type="text" value="REV_" help="Every protein identifier containing this tag will be removed" />
+      </when>
+    </conditional>
+    <!-- filter contaminant entries -->
+    <conditional name="condFilterContaminant">
+      <param name="conta" checked="no" label="Filter contaminant entries" type="boolean" display="checkboxes" help="Remove protein entries matching a given pattern"></param>
+      <when value="yes">
+        <param name="contaTag" label="Contaminant tag" type="text" value="CON_" help="Every protein identifier containing this tag will be removed" />
+      </when>
+    </conditional>
+      <!-- output file format -->
+      <conditional name="condFormat">
+        <param name="imgFormat" type="select" display="radio" label="Output files format">
+            <option value="png">PNG format (classic image format)</option>
+            <option value="svg" selected="true">SVG format (scalable vector image that can be edited later)</option>
+        </param>
+        <when value="svg">
+          <param name="dpi" label="Image DPI" type="integer" value="72" help="The DPI is the number of dots per inch, a dpi of 72 is suggested for scalar images" />
+        </when>
+        <when value="png">
+          <param name="dpi" label="Image DPI" type="integer" value="300" help="The DPI is the number of dots per inch, a dpi of 300 is suggested for high-resolution images" />
+        </when>
+      </conditional>
+  </inputs>
+  <outputs>
+    <data format="svg" name="output1_svg" label="${inputFile.display_name}-PairSummary">
+      <filter>condFormat['imgFormat'] == 'svg'</filter>
+    </data>
+    <data format="svg" name="output2_svg" label="${inputFile.display_name}-2DScore">
+      <filter>condFormat['imgFormat'] == 'svg'</filter>
+    </data>
+    <data format="png" name="output1_png" label="${inputFile.display_name}-PairSummary">
+      <filter>condFormat['imgFormat'] == 'png'</filter>
+    </data>
+    <data format="png" name="output2_png" label="${inputFile.display_name}-2DScore">
+      <filter>condFormat['imgFormat'] == 'png'</filter>
+    </data>
+  </outputs>
+  <tests>
+    <test>
+    </test>
+  </tests>
+  <help><![CDATA[
 
-    ]]></help>
-    <citations>
-      
-    </citations>
+**What it does**
+
+Takes a Proline, Maxquant or Prostar output file from a DDA quantification run, and generates a PCA with 2 dimensions. Be aware that reading large Excel files can take a lot of time, so it's best to send a file only containing the necessary sheet and the necessary columns.
+
+This tools helps the user to better visualize the categorisation of samples into different groups using the PCA representation.
+The default image format is SVG, that can be edited with tools such as Inkscape: https://inkscape.org/
+
+  ]]></help>
+  <citations>
+    <citation type="doi">10.1002/cpbi.86</citation>
+  </citations>
 </tool>
+
 
 
