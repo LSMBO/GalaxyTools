@@ -1,0 +1,62 @@
+<tool id="seq_align" name="Interspecies PTM site correspondance" version="1.0.0">
+  <description>Gives the localization correspondance between PTM site in a specie and another specie</description>
+  <command detect_errors="exit_code"><![CDATA[
+    perl $__tool_directory__/seqalign.pl '$inputs' '$output1' '$output2'
+  ]]></command>
+  <configfiles>
+      <inputs name="inputs"  data_style="paths" />
+  </configfiles>
+  <inputs>
+    <param format="fasta" name="dbSource" type="data" label="Source fasta file" multiple="false" help="This file contains the proteins with the ids you have"/>
+    <param format="fasta" name="dbRef" type="data" label="Reference fasta file" multiple="false" help="This file contains the proteins that will be searched"/>
+    <section name="inputFile" title="Input file" expanded="true">
+      <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" />
+      <param name="sheetNumber" label="Number of the sheet containing the protein identifiers" type="integer" value="1" help="" />
+      <param name="colAccession" label="Column containing the protein identifiers" type="text" value="A">
+        <validator type="regex" message="Expected format is Letter(s) only">^[a-zA-Z]+$</validator>
+      </param>
+      <param name="colPosition" label="Column containing the position to look for" type="text" value="B">
+        <validator type="regex" message="Expected format is Letter(s) only">^[a-zA-Z]+$</validator>
+      </param>
+    </section>
+    <conditional name="fasta36">
+      <param name="strategy" type="select" display="radio" label="Fasta36 results strategy" help="Select the criteria to determine which proteins identified by Fasta36 will be used for alignment">
+        <option value="identityThreshold" selected="true">Identity threshold</option>
+        <option value="bestMatches">Best matches</option>
+      </param>
+      <when value="identityThreshold">
+        <param name="identityThreshold" label="Identity threshold" type="float" value="0.8" help="Keep all the Fasta36 results with an identity percentage higher or equal to this value" />
+      </when>
+      <when value="bestMatches">
+        <param name="bestMatches" label="Best matches" type="integer" value="3" help="Number of matches to keep for each Fasta36 result" />
+      </when>
+    </conditional>
+  </inputs>
+  <outputs>
+    <data format="xlsx" name="output1" label="${inputFile.excelFile.display_name}-output" />
+    <data format="zip" name="output2" label="${inputFile.excelFile.display_name}-stretcher" />
+  </outputs>
+  <tests>
+    <test>
+    </test>
+  </tests>
+  <help><![CDATA[
+
+**What it does**
+
+This tool will extract from the source fasta file all the proteins that are found in the Excel file, and will run Fasta36 on each protein against the reference fasta file.
+
+The best matches from Fasta36 will be aligned using the Emboss Stretcher tool (https://www.ebi.ac.uk/Tools/psa/emboss_stretcher/). The results of each alignment is put in an Excel file, and the raw results from Stretcher are also returned to the user.
+
+This tool can be rather slow, since it does a large amount of comparisons with Fasta36, and a lot of alignments. Reading the Excel input file is also a slow operation, especially on large files.
+
+  ]]></help>
+  <citations>
+    <citation type="doi">10.1073/pnas.85.8.2444</citation>
+    <citation type="doi">10.1016/s0076-6879(96)66017-0</citation>
+    <citation type="doi">10.1093/nar/gkz268</citation>
+  </citations>
+</tool>
+
+
+
