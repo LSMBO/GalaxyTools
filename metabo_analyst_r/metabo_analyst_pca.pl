@@ -9,6 +9,7 @@ use LsmboFunctions qw(archive booleanToString checkUniprotFrom decompressZip ext
 use LsmboExcel qw(extractIds getValue writeExcelLine writeExcelLineF);
 use Spreadsheet::ParseExcel::Utility 'col2int';
 use Text::CSV qw( csv );
+use Data::Dumper;
 
 my ($paramFile, $outputFile1, $outputFile2) = @ARGV;
 
@@ -66,6 +67,7 @@ sub createInputFile {
   if($PARAMS{"condInput"}{"inputFormat"} eq "maxquant_txt") {
     # this is a text file
     $samplesTag = "^LFQ intensity ";
+#    my $inputFile = $PARAMS{"condInput"}{"mqtInputFile"};
     $ptrData = readTextFile($inputFile, "Protein IDs", $samplesTag);
   } else {
     # this is an excel file
@@ -75,15 +77,18 @@ sub createInputFile {
     my $columnsSamplesStop = 2;
     if($PARAMS{"condInput"}{"inputFormat"} eq "maxquant_xlsx") {
       $samplesTag = "^LFQ intensity ";
+#      my $inputFile = $PARAMS{"condInput"}{"mqxInputFile"};
       $ptrData = readExcelFileWithTags($inputFile, $sheetNumber, "Protein IDs", $samplesTag);
     } elsif($PARAMS{"condInput"}{"inputFormat"} eq "proline") {
       $samplesTag = "^abundance_\\d+_";
       $samplesTag = "^raw_abundance_\\d+_" if(booleanToString($PARAMS{"condInput"}{"preferRawAbundance"}) eq "true");
+#      my $inputFile = $PARAMS{"condInput"}{"proInputFile"};
       $ptrData = readExcelFileWithTags($inputFile, $sheetNumber, "accession", $samplesTag);
     } else {
       my $columnProteinId = col2int($PARAMS{"condInput"}{"columnProteinId"});
       my $columnsSamplesStart = col2int($PARAMS{"condInput"}{"columnsSamplesStart"});
       my $columnsSamplesStop = col2int($PARAMS{"condInput"}{"columnsSamplesStop"});
+#      my $inputFile = $PARAMS{"condInput"}{"xlsxInputFile"};
       $ptrData = readExcelFile($inputFile, $sheetNumber, $columnProteinId, $columnsSamplesStart, $columnsSamplesStop);
     }
   }
@@ -92,9 +97,16 @@ sub createInputFile {
   my $namesPtr = shift(@rows);
   my @names = @{$namesPtr};
   $names[0] = "name";
+  # TODO remove the $samplesTag directly here ?
+  for(my $i = 1; $i < scalar(@names); $i++) {
+    $names[$i] = remove_tag($names[$i], $samplesTag);
+  }
   my $namesRow = join(";", @names);
   $namesRow =~ s/ /\-/g;
-  my @labels = defineLabels(\@names, $samplesTag);
+  # my @labels = defineLabels(\@names, $samplesTag);
+  my @labels = defineLabels(@names);
+  # print Dumper(\@names);
+  # print Dumper(\@labels);
   my $labelsRow = join(";", @labels);
   $labelsRow =~ s/ /\-/g;
   # write the file manually
@@ -114,31 +126,103 @@ sub createInputFile {
     print $fh join(";", @cells)."\n";
   }
   close $fh;
-  
+
   # return the path of the input file
   return $file;
 }
 
 sub defineLabels {
-  my ($ptrRow, $samplesTag) = @_;
+  # my ($ptrRow, $samplesTag) = @_;
+  my @names = @_;
   
   my @labels = ();
-  my @names = @{$ptrRow};
-  foreach my $name (@names) {
-    my $label = $name;
-    $label =~ s/$samplesTag//;
-    $label =~ s/\d+$//;
-    push(@labels, $label);
+  # my @names = @{$ptrRow};
+  if($PARAMS{"condList"}{"condType"} eq "pattern") {
+    # use a predefined rule
+    # my $fct = \&remove_tag;
+    my $fct = \&do_nothing;
+    $fct = \&remove_numbers_end if($PARAMS{"condList"}{"pattern"} eq "remove_numbers_end");
+    $fct = \&remove_numbers_begin_end if($PARAMS{"condList"}{"pattern"} eq "remove_numbers_begin_end");
+    $fct = \&remove_after_space if($PARAMS{"condList"}{"pattern"} eq "remove_after_space");
+    foreach my $name (@names) {
+      # my $tag = $fct->($name, $samplesTag);
+      my $tag = $fct->($name);
+      $name =~ m/$tag$/;
+      push(@labels, $tag);
+    }
+  } elsif($PARAMS{"condList"}{"condType"} eq "conditions") {
+    # get the conditions provided by the user
+    my %conditions;
+    foreach my $cond (@{$PARAMS{"condList"}{"conditions"}}) {
+      $conditions{$cond->{"condition"}} = 1;
+    }
+    # search the conditions within the sample names
+    foreach my $name (@names) {
+      my $label = "Missing_condition";
+      foreach my $condition (keys(%conditions)) {
+        $label = $condition if($name =~ m/$condition/);
+      }
+      push(@labels, $label);
+    }
+  } elsif($PARAMS{"condList"}{"condType"} eq "samples") {
+    # get the conditions for each sample, provided by the user
+    my %samples;
+    foreach my $sample (@{$PARAMS{"condList"}{"samples"}}) {
+      $samples{$sample->{"sample"}} = $sample->{"condition"};
+    }
+    # just get the corresponding condition to that sample (use a default condition if the sample name is missing)
+    foreach my $name (@names) {
+      my $label = "Missing_condition";
+      # $name = remove_tag($name, $samplesTag);
+      $label = $samples{$name} if(exists($samples{$name}));
+      push(@labels, $label);
+    }
   }
+  # return ("label", @labels);
   $labels[0] = "label";
+  # for(my $i = 1; $i < scalar(@labels); $i++) {
+    # my $sample = $names[$i];
+    # my $label = $labels[$i];
+    # print "Sample '$sample' => Label '$label'\n";
+  # }
   return @labels;
+}
+sub do_nothing {
+  return $_[0];
+}
+sub remove_tag {
+  my ($value, $samplesTag) = @_;
+  $value =~ s/$samplesTag//;
+  return $value;
+}
+sub remove_numbers_end {
+  # my ($value, $samplesTag) = @_;
+  my ($value) = @_;
+  # $value =~ s/$samplesTag//;
+  $value =~ s/\d+$//;
+  return $value;
+}
+sub remove_numbers_begin_end {
+  # my ($value, $samplesTag) = @_;
+  my ($value) = @_;
+  # $value =~ s/$samplesTag//;
+  $value =~ s/^\d+//;
+  $value =~ s/\d+$//;
+  return $value;
+}
+sub remove_after_space {
+  # my ($value, $samplesTag) = @_;
+  my ($value) = @_;
+  # $value =~ s/$samplesTag//;
+  my @items = split(" ", $value);
+  return $items[0];
 }
 
 sub readTextFile {
   my ($inputFile, $proteinIdTag, $samplesTag) = @_;
   print "Reading text input file\n";
   my $csv = Text::CSV->new ({ 
-    eol => "\r\n", 
+#    eol => "\r\n", # if not set it accepts \r, \n and \r\n
     binary => 1, 
     auto_diag => 2, 
     diag_verbose => 1, 

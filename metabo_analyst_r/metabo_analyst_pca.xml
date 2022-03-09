@@ -1,4 +1,4 @@
-<tool id="metabo_analyst_pca" name="MetaboAnalyst PCA" version="1.1.0">
+<tool id="metabo_analyst_pca" name="MetaboAnalyst PCA" version="1.2.1">
   <description>PCA analysis using MetaboAnalyst</description>
   <command detect_errors="exit_code"><![CDATA[
     perl $__tool_directory__/metabo_analyst_pca.pl '$inputs'
@@ -46,6 +46,48 @@
         </param>
       </when>
     </conditional>
+    <!-- conditions -->
+    <conditional name="condList">
+      <param name="condType" type="select" display="radio" label="Conditions">
+          <option value="pattern">Extract conditions from sample names</option>
+          <option value="conditions">User-defined conditions</option>
+          <option value="samples">Define condition for each sample name</option>
+      </param>
+      <when value="pattern">
+        <!-- dropdown list with different possibilities: "(ConditionName)\d+$", "(ConditionName) (.*)$", "(ConditionName)-(.*)$" -->
+        <param name="pattern" type="select" label="Auto-extract conditions from sample names" help="Select the rule that works on your sample names">
+          <option value="remove_numbers_end">Remove numbers at the end</option>
+          <option value="remove_numbers_begin_end">Remove numbers at the beginning and at the end</option>
+          <option value="remove_after_space">Remove everything after first 'space' character</option>
+        </param>
+      </when>
+      <when value="conditions">
+        <repeat name="conditions" title="New condition name" help="Condition names are case sensitive">
+					<param type="text" name="condition" label="Condition" />
+ 				</repeat>
+      </when>
+      <when value="samples">
+        <repeat name="samples" title="New sample/condition" help="Sample names are case sensitive">
+					<param type="text" name="sample" label="Sample" />
+					<param type="text" name="condition" label="Condition" />
+ 				</repeat>
+      </when>
+      <!--<param name="condType" type="select" display="radio" label="Conditions">
+          <option value="auto">Auto</option>
+          <option value="manual">Manual</option>
+      </param>
+      <when value="auto">
+        <param name="auto" type="text" label="Conditions will be automatically detected" value="The expected pattern is that the condition name is at the beginning of each sample name, and the rest of the sample name is just numbers to remove to extract the condition. Maxquant and Proline specific tags will also be removed (ie. LFQ intensity, abundance and raw_abundance)." />
+      </when>-->
+      <!--
+      <param name="autoConditions" checked="yes" label="Automatically detect the conditions" type="boolean" display="checkboxes" help="The expected pattern is that the condition name is at the beginning of each sample name, and the rest of the sample name is just numbers to remove to extract the condition. Maxquant and Proline specific tags will also be removed (ie. LFQ intensity, abundance and raw_abundance)." />
+      <when value="false">
+        <repeat name="manual" title="New condition name" help="Condition names are case sensitive">
+					<param type="text" name="condition" label="Condition" />
+ 				</repeat>
+      </when>
+      -->
+    </conditional>
     <!-- filter decoy entries -->
     <conditional name="condFilterDecoy">
       <param name="decoy" checked="no" label="Filter decoy entries" type="boolean" display="checkboxes" help="Remove protein entries matching a given pattern"></param>
@@ -75,16 +117,16 @@
       </conditional>
   </inputs>
   <outputs>
-    <data format="svg" name="output1_svg" label="${inputFile.display_name}-PairSummary">
+    <data format="svg" name="output1_svg" label="${condInput.inputFile.display_name}-PairSummary">
       <filter>condFormat['imgFormat'] == 'svg'</filter>
     </data>
-    <data format="svg" name="output2_svg" label="${inputFile.display_name}-2DScore">
+    <data format="svg" name="output2_svg" label="${condInput.inputFile.display_name}-2DScore">
       <filter>condFormat['imgFormat'] == 'svg'</filter>
     </data>
-    <data format="png" name="output1_png" label="${inputFile.display_name}-PairSummary">
+    <data format="png" name="output1_png" label="${condInput.inputFile.display_name}-PairSummary">
       <filter>condFormat['imgFormat'] == 'png'</filter>
     </data>
-    <data format="png" name="output2_png" label="${inputFile.display_name}-2DScore">
+    <data format="png" name="output2_png" label="${condInput.inputFile.display_name}-2DScore">
       <filter>condFormat['imgFormat'] == 'png'</filter>
     </data>
   </outputs>
@@ -100,6 +142,27 @@ Takes a Proline, Maxquant or Prostar output file from a DDA quantification run, 
 
 This tools helps the user to better visualize the categorisation of samples into different groups using the PCA representation.
 The default image format is SVG, that can be edited with tools such as Inkscape: https://inkscape.org/
+
+**How samples are determined**
+
+This tool will extract intensities from the input file. It looks in the first line (blank lines are skipped automatically) and searches for specific tags depending on the origin of the file:
+* If the file comes from Maxquant, the tag is "LFQ intensity". For instance, "LFQ intensity DBT Early1" will correspond to the sample "DBT Early1".
+* If the file comes from Proline, the tag is either "abundance" or "raw_abundance". For instance, "raw_abundance_1_E shC 1" will correspond to the sample "1_E shC 1".
+* Another possibility is to indicate the cells that contain the samples. In this case, no tags will be searched and the name of the samples will be the exact value of the header cell for each column.
+
+**How to provide conditions**
+
+This tool needs to know the condition for each sample. Do provide this information, you have three possibilities:
+
+* Extract conditions from sample names: 
+
+  * Remove numbers at the end: the condition will correspond to the sample name without any number at the end. For instance, "DBT Early1" will give the condition "DBT Early".
+  * Remove numbers at the beginning and at the end: the condition will correspond to the sample name without any number at the beginning or at the end. For instance, "18J1_CIVD01" wille give the condition "J1_CIVD".
+  * Remove everything after first 'space' character: the condition will correspond to the sample name, cut after the first 'space' character. For instance, "Wildtype 1" will give the condition "Wildtype".
+
+* User-defined conditions: manually add each condition, we assume that each sample is named after its condition, for instance "DBT Early1" belongs to the condition "DBT Early". A default condition is created for the samples that do not match any given condition.
+
+* Define condition for each sample name: manually add each sample and the condition it belongs. This is the most time-consuming way and the sample names must match exactly to the names in the input file, otherwise they will be assigned to a default condition.
 
   ]]></help>
   <citations>
