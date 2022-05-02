@@ -4,7 +4,7 @@ use warnings;
 
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
-use LsmboFunctions qw(extractListEntries parameters stderr);
+use LsmboFunctions qw(extractListEntries getFileNameFromArchive parameters stderr);
 use LsmboExcel qw(extractIds writeExcelLine writeExcelLineF);
 
 use File::Copy;
@@ -43,19 +43,39 @@ if($PARAMS{"peptides"}{"source"} eq "list") {
 my %sequences;
 my %descriptions;
 my $fastaFile = $PARAMS{"fasta"};
-open(my $fh, "<", $fastaFile) or stderr("Can't read Fasta file $fastaFile: $!");
-my $accession = "";
-while(<$fh>) {
-    s/\r?\n$//;
-    if(m/^>([^\s]+) (.*)/) {
-        $accession = $1;
-        $descriptions{$accession} = $2;
-    } else {
-        $sequences{$accession} .= $_;
-        $sequences{$accession} .= $_;
-    }
+my $fhx;
+if(-B $fastaFile) {
+  # file is binary, and the only binary file type we allow in the xml file is zip
+  my $zip = Archive::Zip->new($fastaFile);
+  $fhx = Archive::Zip::MemberRead->new($zip, getFileNameFromArchive($fastaFile, "fasta"));
+} else {
+  # file is ASCII
+  open($fhx, "<", $fastaFile) or stderr("Can't open fasta file $fastaFile: $!");
 }
-close $fh;
+# open(my $fh, "<", $fastaFile) or stderr("Can't read Fasta file $fastaFile: $!");
+my $accession = "";
+# while(<$fh>) {
+    # s/\r?\n$//;
+    # if(m/^>([^\s]+) (.*)/) {
+        # $accession = $1;
+        # $descriptions{$accession} = $2;
+    # } else {
+        # $sequences{$accession} .= $_;
+        # $sequences{$accession} .= $_;
+    # }
+# }
+# close $fh;
+while (defined(my $line = $fhx->getline())) {
+  $line =~ s/\r?\n$//;
+  if($line =~ m/^>([^\s]+) (.*)/) {
+      $accession = $1;
+      $descriptions{$accession} = $2;
+  } else {
+      $sequences{$accession} .= $line;
+      $sequences{$accession} .= $line;
+  }
+}
+$fhx->close();
 
 # writeExcelFile();
 # if the input file is an excel file, add the output to the original data (how ??)
@@ -77,7 +97,7 @@ writeExcelLineF($worksheet, 0, $format, "Peptides", "Nb protein matches", "Prote
 
 # check each peptide
 my $line = 1;
-open($fh, "<", "$inputFile") or stderr("Can't read file '$inputFile': $!");
+open(my $fh, "<", "$inputFile") or stderr("Can't read file '$inputFile': $!");
 while(<$fh>) {
     chomp;
     if($_ ne "") {
