@@ -64,7 +64,7 @@ sub parameters {
 sub booleanToString {
   my $value = "false";
   eval { $value = "true" if($_[0] eq "true");
-  } or $value = "true" if($_[0] == 1);
+  } or $value = "true" if($_[0] eq 1);
   return $value;
 }
 
@@ -186,6 +186,25 @@ sub randomSubset {
 ###################
 # LOGGING METHODS #
 ###################
+
+sub getVersion {
+  my ($package, $filename, $line) = caller;
+  $filename =~ s/\.pl$/.xml/;
+  my $version = "";
+  if(open(my $fh, "<", $filename)) {
+    while(<$fh>) {
+      chomp;
+      if(m/<tool /) {
+        my ($n) = m/name\s*=\s*"([^"]*)"/;
+        my ($v) = m/version\s*=\s*"([^"]*)"/;
+        $version = $n eq "" ? $v : "$n $v";
+        last;
+      }
+    }
+    close $fh;
+  }
+  return $version;
+}
 
 # Log messages with trace (set die = 1 to stop the process, default is 0)
 # caller: Returns the context of the current pure perl subroutine call

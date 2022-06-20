@@ -2,21 +2,19 @@
 use strict;
 use warnings;
 
-use XML::Simple;
-
+use Data::Dumper;
 use File::Basename;
-use lib dirname(__FILE__)."/../Modules";
-use LsmboFunctions qw(archive getDate parameters stderr);
-use LsmboExcel qw(getValue setColumnsWidth writeExcelLine writeExcelLineF);
-use LsmboRest qw(REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
-
-use DBI;
-use File::Copy;
 use Image::Size;
-use List::MoreUtils qw(uniq);
-use MIME::Base64 qw(encode_base64);
+use lib dirname(__FILE__)."/../Modules";
+use LsmboFunctions qw(archive booleanToString getDate getVersion parameters stderr);
+use LsmboExcel qw(addWorksheet getValue setColumnsWidth writeExcelLine writeExcelLineF);
+use LsmboRest qw(downloadFile REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
+use lib dirname(__FILE__);
+use HtmlGenerator qw(createHtmlFile);
+
+use File::Copy;
 use Scalar::Util qw(looks_like_number);
-use SVG;
+use URL::Exists qw(url_exists);
 
 # $inputFile must contain protein accession numbers, p-value, fc, tukey
 # $anova, $fc, $tukey are threshold values
@@ -24,888 +22,425 @@ my ($paramFile, $outputFile, $zipFile) = @ARGV;
 
 # set global variables here
 my %PARAMS = %{parameters($paramFile)};
+my $IS_UNIPROT = $PARAMS{"type"} eq "uniprot" ? 1 : 0;
+my $WITH_SITES = booleanToString($PARAMS{"withSites"}) eq "true" ? 1 : 0;
+
 # database directories
-my $dirname = dirname(__FILE__);
-my $DIR_MAP = "$dirname/map";
-my $DIR_INFO = "$dirname/info";
-my $DIR_CONF = "$dirname/conf";
-my $DIR_XML = "$dirname/kgml";
-$DIR_XML = "$dirname/kgml_maps" if($PARAMS{"type"} ne "uniprot");
-# local temporary directories
-my $DIR_DRAW = "draw";
-my $DIR_SVG = "svg";
-# colors
-my $BLACK = "#000000";
-my %COLORCODES = ("Y" => "#ffe333", "B" => "#428fd3", "R" => "#ff4c33", "G" => "#53c326");
-my %COLORMEANING = ("Y" => "Does not satisfy p-value criteria",
-                    "B" => "Satisfies p-value criteria",
-                    "R" => "Upregulated",
-                    "G" => "Downregulated");
-# input data
-my %DATA;
-my $SQLITEDB = "kegg.db";
+my $BINARIES_DIRECTORY = dirname(__FILE__);
+my $DIR_CONF = "$BINARIES_DIRECTORY/conf";
+my $DIR_INFO = "$BINARIES_DIRECTORY/info";
+my $DIR_PNG = "$BINARIES_DIRECTORY/map";
+my $DIR_HTML = "html";
 
-# clean stuff just in case
-mkdir($DIR_DRAW) unless(-d $DIR_DRAW);
-mkdir($DIR_SVG) unless(-d $DIR_SVG);
-unlink($SQLITEDB, glob("$DIR_DRAW/*"), glob("$DIR_SVG/*"));
+# other data
+my $TAXONOMY = "map"; # default value
+my $KEGG_URL = "https://rest.kegg.jp";
+my $MAX_AGE_IN_DAYS_FOR_KEGG_FILES = 30 * 2; # 2 months max
+my $FORCE_FILE_UPDATE = 0;
+my %STATUS = ("KO" => {"id" => 1, "text" => "Does not satisfy p-value criteria", "color" => "#ffe333", "symbol" => "\\2716", "html" => "&#10006;"}, # yellow
+              "OK" => {"id" => 2, "text" => "Satisfies p-value criteria", "color" => "#428fd3", "symbol" => "\\2714", "html" => "&#10004;"}, # blue
+              "UP" => {"id" => 3, "text" => "Upregulated", "color" => "#ff4c33", "symbol" => "\\2191", "html" => "&#8593;"}, # red
+              "DO" => {"id" => 4, "text" => "Downregulated", "color" => "#53c326", "symbol" => "\\2193", "html" => "&#8595;"}); # green
 
-# make a copy of the file, otherwise the XLSX parser may fail
-my $inputCopy = "input.xlsx";
-copy($PARAMS{"inputFile"}, $inputCopy);
+# data
+my %DATA; # $DATA{userId_i}{site_j} = status_key
+my %USERID_PER_UNIPROT_ENTRY; # map between the user input ids and the corresponding Uniprot Entry
+my %KEGG; # $KEGG{userId_i}{keggId} = array(pathway)
+my %PATHWAY_INFO; # $PATHWAY_INFO{pathway}{"name"} = name, $PATHWAY_INFO{pathway}{"class"} = class
 
-# read the input file
-my @headers = extractData($inputCopy);
-print "".scalar(keys(%DATA))." entries have been stored\n";
+start();
+print "Correct ending of the script\n";
 
-# make sure the uniprot identifiers are the good ones
-# what is expected is the Entry, and not the Entry name (ie. P0DPI2 instead of GAL3A_HUMAN)
-if($PARAMS{"type"} eq "uniprot") {
+exit;
+
+# extraction of the value, but there may not be any value in the file
+sub getExcelValue {
+  my ($worksheet, $row, $nbColumns, $column) = @_;
+  $column += $WITH_SITES;
+  my $value = $nbColumns >= $column ? getValue($worksheet, $row, $column) : "";
+  return looks_like_number($value) ? $value : 1000000; # use a very large integer
+}
+
+sub getStatus {
+  my ($worksheet, $row, $nbColumns) = @_;
+  my $anova = getExcelValue($worksheet, $row, $nbColumns, 1);
+  my $fc = getExcelValue($worksheet, $row, $nbColumns, 2);
+  my $tukey = getExcelValue($worksheet, $row, $nbColumns, 3);
+  
+  if($PARAMS{"Statistics"}{"value"} eq "anova_only" && $anova < $PARAMS{"Statistics"}{"anova"}) {
+    return "OK";
+  } elsif($PARAMS{"Statistics"}{"value"} eq "anova_fc" && $anova < $PARAMS{"Statistics"}{"anova"}) {
+    return "UP" if($fc > $PARAMS{"Statistics"}{"fc"});
+    return "DO" if($fc < -$PARAMS{"Statistics"}{"fc"});
+    return "OK";
+  } elsif($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey" && $anova < $PARAMS{"Statistics"}{"anova"} && $tukey < $PARAMS{"Statistics"}{"tukey"}) {
+    # TODO test with tukey
+    return "UP" if($fc > $PARAMS{"Statistics"}{"fc"});
+    return "DO" if($fc < -$PARAMS{"Statistics"}{"fc"});
+    return "OK";
+  }
+  return "KO";
+}
+
+sub extractData {
+  # make a copy of the file, otherwise the XLSX parser may fail
+  my $inputFile = "input.xlsx";
+  copy($PARAMS{"inputFile"}, $inputFile);
+
+  # open the excel file
+  my $parser = Spreadsheet::ParseXLSX->new;
+  my $workbook = $parser->parse($inputFile);
+  stderr($parser->error()."\n") if(!defined $workbook);
+
+  my @worksheets = $workbook->worksheets;
+  my $worksheet = $worksheets[0];
+  my ($row_min, $row_max) = $worksheet->row_range();
+  my ($col_min, $col_max) = $worksheet->col_range();
+  
+  # skip header line
+  my $nbRows = 0;
+  for my $row ($row_min + 1 .. $row_max) {
+    my $id = getValue($worksheet, $row, 0);
+    my $site = $WITH_SITES eq 1 ? getValue($worksheet, $row, 1) : 1;
+    next if($id eq "" || $site eq "");
+    $DATA{$id}{$site} = getStatus($worksheet, $row, $col_max);
+    $nbRows++;
+  }
+
+  print "$nbRows rows have been read\n";
+}
+
+sub getUniprotEntries {
   # put the ids in a text file
   my $tempFile = "uniprot_temp_ids.txt";
   open(my $tmp, '>', $tempFile) or stderr("Unable to create a temporary file for Uniprot conversion");
-  foreach (keys(%DATA)) {
-    print $tmp $DATA{$_}{"A"}."\n";
-  }
+  foreach (keys(%DATA)) { print $tmp "$_\n"; }
   close $tmp;
   # ask uniprot for the corresponding Entry (id)
   my %output = %{REST_POST_Uniprot_tab($tempFile, "ACC+ID", "id")};
   # extract uniprot version
   my $version = delete($output{UNIPROT_RELEASE()});
   # replace the keys in %DATA
-  foreach (keys(%DATA)) {
-    my $userEntry = $DATA{$_}{"A"};
-    my @items = @{$output{$userEntry}};
-    my $entry = $items[1];
-    # $DATA{$_}{"A"} = $entry;
-    # $DATA{$_}{"UserEntry"} = $userEntry;
-    $DATA{$_}{"Entry"} = $entry;
+  foreach my $userEntry (keys(%DATA)) {
+    my $uniprotEntry = ${$output{$userEntry}}[1];
+    $USERID_PER_UNIPROT_ENTRY{$uniprotEntry} = $userEntry;
+    if($uniprotEntry ne $userEntry) {
+      $DATA{$uniprotEntry} = $DATA{$userEntry};
+      delete($DATA{$userEntry});
+    }
   }
   # delete the temp file
   unlink $tempFile;
 }
 
-my $taxonomy = "";
-if($PARAMS{"type"} eq "uniprot") {
-  # detect the taxonomy based on the first protein ID
-  $taxonomy = detectTaxonomy();
-  stderr("Unable to determine taxonomy from the protein IDs") if($taxonomy eq "");
-  print "Taxonomy is '$taxonomy'\n";
-  # create the database
-  setupDatabase($taxonomy);
-} else {
-  setupDatabaseCpd();
-}
-# fill the database
-importData();
-my @maps = getMaps();
-
-
-# update maps with REST API
-if($PARAMS{"type"} eq "uniprot") {
-  updateMaps($taxonomy, @maps);
-} else {
-  updateMapsCpd(@maps);
-  $taxonomy = "map";
-}
-cleanMaps($taxonomy, @maps);
-
-# create drawings
-prepareDrawing($taxonomy);
-createSvgFiles();
-
-# create excel output
-writeExcelOutput(\@headers, $taxonomy, $outputFile);
-
-# compress the svg folder at the end
-print "Creating zip file with all svg files\n";
-archive($zipFile, $DIR_SVG);
-
-# clean stuff at the end
-unlink($SQLITEDB, glob("$DIR_DRAW/*"), glob("$DIR_SVG/*"), $inputCopy);
-rmdir($DIR_DRAW);
-rmdir($DIR_SVG);
-
-print "Correct ending of the script\n";
-
-exit;
-
-
-sub extractData {
-    my ($inputFile) = @_;
-    
-    print "Read input file $inputFile\n";
-    my @headers;
-    # open the excel file
-    my $parser = Spreadsheet::ParseXLSX->new;
-    my $workbook = $parser->parse($inputFile);
-    stderr($parser->error()."\n") if(!defined $workbook);
-    
-    my @worksheets = $workbook->worksheets;
-    my $worksheet = $worksheets[0];
-    my ($row_min, $row_max) = $worksheet->row_range();
-    my ($col_min, $col_max) = $worksheet->col_range();
-
-    # get headers in first line
-    for my $col ($col_min .. $col_max) {
-        push(@headers, getValue($worksheet, $row_min, $col));
-    }
-    
-    # skip header line
-    my $id = 0;
-    for my $row ($row_min+1 .. $row_max) {
-        my $acc = getValue($worksheet, $row, 0);
-        next if($acc eq "");
-        $DATA{$id++} = {
-            "A" => $acc, 
-            "B" => $col_max > 0 ? getValue($worksheet, $row, 1) : "", 
-            "C" => $col_max > 1 ? getValue($worksheet, $row, 2) : "", 
-            "D" => $col_max > 2 ? getValue($worksheet, $row, 3) : "",
-        };
-    }
-    
-    return @headers;
-}
-
 sub detectTaxonomy {
+  if($IS_UNIPROT eq 1) {
     # use the REST api with each protein until one protein matches a taxonomy (hopefully the first one!)
-    foreach my $i (keys(%DATA)) {
-        # my $protein = $DATA{$i}{"A"};
-        my $protein = (exists($DATA{$i}{"Entry"}) ? $DATA{$i}{"Entry"} : $DATA{$i}{"A"});
-        my $output = REST_GET("http://rest.kegg.jp/conv/genes/up:$protein");
-        # expected result: up:O14683\thsa:9537
-        if($output =~ m/.+\t(.+):.+$/) {
-            return $1;
-        }
-    }
-    return "";
-}
-
-sub setupDatabase {
-    my ($taxonomy) = @_;
-    
-    # prepare SQLite database
-    print "Prepare SQLite database\n";
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
-        AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr);
-    doAndCommit($dbh, qq(CREATE TABLE taxonomy (taxonomy TEXT NOT NULL);));
-    doAndCommit($dbh, qq(CREATE TABLE uphsa (protein TEXT NOT NULL, hsa TEXT NOT NULL);));
-    doAndCommit($dbh, qq(CREATE TABLE hsapath (hsa TEXT NOT NULL, path TEXT NOT NULL);));
-    doAndCommit($dbh, "INSERT INTO taxonomy VALUES (\"$taxonomy\")");
-    
-    # basic use case
-    my @keggIds = split(/\n/, REST_GET("http://rest.kegg.jp/conv/$taxonomy/uniprot"));
-    my $sth = $dbh->prepare("INSERT INTO uphsa VALUES (?,?)");
-    foreach my $keggId (@keggIds) {
-        my ($prot, $id) = split(/\t/, $keggId);
-        $prot =~ s/up://;
-        $sth->execute($prot, $id);
-    }
-    $dbh->commit();
-
-    # get pathways
-    my @pathways = split(/\n/, REST_GET("http://rest.kegg.jp/link/pathway/$taxonomy"));
-    $sth = $dbh->prepare("INSERT INTO hsapath VALUES (?,?)");
-    foreach my $pathway (@pathways) {
-        my ($kegg, $path) = split(/\t/, $pathway);
-        $sth->execute ($kegg, $path);
-    }
-    $dbh->commit();
-    
-    # adding indices after uploading data (to make sure the indices are calculated only once)
-    doAndCommit($dbh, qq(CREATE INDEX prot ON uphsa(protein)));
-    doAndCommit($dbh, qq(CREATE INDEX kegg ON uphsa(hsa)));
-    doAndCommit($dbh, qq(CREATE INDEX hsa ON hsapath(hsa)));
-    doAndCommit($dbh, qq(CREATE INDEX path ON hsapath(path)));
-    
-    # disconnect from database
-    $dbh->disconnect();
-    
-    print "Current SQLite database is $SQLITEDB\n";
-}
-
-sub setupDatabaseCpd {
-    
-    # prepare SQLite database
-    print "Prepare SQLite database\n";
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
-        AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr);
-    doAndCommit($dbh, qq(CREATE TABLE cpdpath (cpd TEXT NOT NULL, path TEXT NOT NULL);));
-    
-    # get pathways per compound
-    my @pathways = split(/\n/, REST_GET("http://rest.kegg.jp/link/pathway/compound"));
-    my $sth = $dbh->prepare("INSERT INTO cpdpath VALUES (?,?)");
-    foreach my $item (@pathways) {
-        my ($compound, $pathway) = split(/\t/, $item);
-        $compound =~ s/^cpd://;
-        $sth->execute($compound, $pathway);
-    }
-    $dbh->commit();
-    
-    # adding indices after uploading data (to make sure the indices are calculated only once)
-    doAndCommit($dbh, qq(CREATE INDEX cpd ON cpdpath(cpd)));
-    doAndCommit($dbh, qq(CREATE INDEX path ON cpdpath(path)));
-    
-    # disconnect from database
-    $dbh->disconnect();
-    
-    print "Current SQLite database is $SQLITEDB\n";
-}
-
-sub doAndCommit {
-    my ($dbh, $statement) = @_;
-    $dbh->do($statement);
-    $dbh->commit();
-}
-
-sub importData {
-    # also use %DATA
-
-    # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
-        AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr);
-    if($PARAMS{"type"} eq "uniprot") {
-      doAndCommit($dbh, qq(CREATE TABLE acc (protein TEXT PRIMARY KEY, color TEXT NOT NULL);));
-    } else {
-      doAndCommit($dbh, qq(CREATE TABLE acc (cpd TEXT PRIMARY KEY, color TEXT NOT NULL);));
-    }
-    my $sth = $dbh->prepare("INSERT INTO acc VALUES (?,?)");
-    
-    # parsing data
-    print "Filling database with user data\n";
-    for(my $i = 0; $i < scalar(keys(%DATA)); $i++) {
-        my %row = %{$DATA{$i}};
-        # my $acc = $row{"A"};
-        my $acc = (exists($row{"Entry"}) ? $row{"Entry"} : $row{"A"});
-        if($PARAMS{"Statistics"}{"value"} eq "none") {
-            # no statistics
-            $sth->execute($acc, "Y");
-        } elsif($PARAMS{"Statistics"}{"value"} eq "anova_only") {
-            # just anova
-            my $anova = $PARAMS{"Statistics"}{"anova"};
-            $sth->execute($acc, $row{"B"} < $anova ? "B" : "Y");
-        } elsif($PARAMS{"Statistics"}{"value"} eq "anova_fc") {
-            # anova + FC
-            my $anova = $PARAMS{"Statistics"}{"anova"};
-            my $fc = $PARAMS{"Statistics"}{"fc"};
-            my $userAnova = $row{"B"};
-            my $userFC = $row{"C"};
-            if(looks_like_number($userAnova) && $userAnova < $anova) {
-                if(!looks_like_number($userFC)) { $sth->execute($acc, "B"); # case if no FC value
-                } elsif($userFC > $fc) { $sth->execute($acc, "R");
-                } elsif($userFC < -$fc) { $sth->execute($acc, "G");
-                } else { $sth->execute($acc, "B"); }
-            } else {
-                $sth->execute($acc, "Y");
-            }
-        # TODO test with tukey
-        } elsif($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey") {
-            # anova + Tukey + FC
-            my $anova = $PARAMS{"Statistics"}{"anova"};
-            my $fc = $PARAMS{"Statistics"}{"fc"};
-            my $tukey = $PARAMS{"Statistics"}{"tukey"};
-            my $userAnova = $row{"B"};
-            my $userTukey = $row{"C"};
-            my $userFC = $row{"D"};
-            if($userAnova < $anova && $userTukey < $tukey) {
-                if($userFC > $fc) { $sth->execute($acc, "R");
-                # TODO check if it's correct, in Patrick's script it was $fc instead of -$fc
-                } elsif($userFC < -$fc) { $sth->execute($acc, "G");
-                } else { $sth->execute($acc, "B"); }
-            } else {
-                $sth->execute($acc, "Y");
-            }
-        }
-    }
-    $dbh->commit();
-    
-    # disconnect from database
-    $dbh->disconnect();
-}
-
-sub getMaps {
-    # also use %DATA
-
-    # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "", {
-        AutoCommit => 0 # disable auto-commit to improve the import
-    }) or stderr($DBI::errstr);
-    
-    my @maps;
-    if($PARAMS{"type"} eq "uniprot") {
-      doAndCommit($dbh, qq(CREATE TABLE map (protein TEXT NOT NULL, color  TEXT NOT NULL, keggid TEXT NOT NULL, path TEXT NOT NULL);));
-      # fill the map table
-      my $sth_1 = $dbh->prepare("INSERT INTO map VALUES (?,?,?,?)");
-      my $sth = $dbh->prepare("SELECT a.protein, a.color, u.hsa, h.path FROM uphsa u INNER JOIN hsapath h ON h.hsa=u.hsa INNER JOIN acc a ON a.protein=u.protein ORDER BY h.path");
-      $sth->execute();
-      while (my @row = $sth->fetchrow_array()) {
-          $sth_1->execute($row[0], $row[1], $row[2], $row[3]);
-          push (@maps, $row[3]);
+    foreach my $protein (keys(%DATA)) {
+      my $output = REST_GET("$KEGG_URL/conv/genes/up:$protein");
+      # expected result: up:O14683\thsa:9537
+      if($output =~ m/.+\t(.+):.+$/) {
+        $TAXONOMY = $1;
+        print "Taxonomy is '$TAXONOMY'\n";
+        return;
       }
-      $dbh->commit();
-      # adding indices
-      doAndCommit($dbh, qq(CREATE INDEX mapprot ON  map(protein)));
-      doAndCommit($dbh, qq(CREATE INDEX mappath ON  map(path)));
-      doAndCommit($dbh, qq(CREATE INDEX keggid ON  map(keggid)));
-    } else {
-      doAndCommit($dbh, qq(CREATE TABLE map (cpd TEXT NOT NULL, color TEXT NOT NULL, path TEXT NOT NULL);));
-      # fill the map table
-      my $sth_1 = $dbh->prepare("INSERT INTO map VALUES (?,?,?)");
-      my $sth = $dbh->prepare("SELECT a.cpd, a.color, h.path FROM cpdpath h INNER JOIN acc a ON a.cpd=h.cpd");
-      $sth->execute();
-      while (my @row = $sth->fetchrow_array()) {
-          $sth_1->execute($row[0], $row[1], $row[2]);
-          push (@maps, $row[2]);
+    }
+    stderr("Unable to determine taxonomy from the protein IDs");
+  } else {
+    print "No taxonomy required for compound entries\n";
+  }
+}
+
+sub getKeggIdsAndPathways {
+  # get the updated list of Kegg ids
+  if($IS_UNIPROT eq 1) {
+    # ${userId_i}{keggId} = array(pathway)
+    my @keggIds = split(/\n/, REST_GET("$KEGG_URL/conv/$TAXONOMY/uniprot"));
+    # returns lines formatted as: "up:Q96QH8\thsa:729201"
+    foreach my $line (@keggIds) {
+      my ($acc, $keggId) = split(/\t/, $line);
+      $acc =~ s/up://;
+      next if(!exists($DATA{$acc}));
+      $KEGG{$acc}{$keggId} = ();
+    }
+  } else {
+    # special case for compounds, they replace the entries and the kegg ids
+    # $KEGG{userId_i}{keggId} = array()
+    foreach my $compoundId (keys(%DATA)) {
+      $KEGG{$compoundId}{$compoundId} = ();
+    }
+  }
+  # get the updated list of Kegg pathways
+  my $taxonomy = $IS_UNIPROT eq 1 ? $TAXONOMY : "compound";
+  my @pathways = split(/\n/, REST_GET("$KEGG_URL/link/pathway/$taxonomy"));
+  # returns lines formatted as: "hsa:6484\tpath:hsa01100" or "cpd:C00022\tpath:map00010"
+  my %pathways;
+  foreach my $line (@pathways) {
+    my ($id, $pathway) = split(/\t/, $line);
+    $id =~ s/^cpd://;
+    push(@{$pathways{$id}}, $pathway);
+  }
+  # associate the pathways to the entries in %KEGG
+  foreach my $acc (keys(%KEGG)) {
+    foreach my $keggId (keys(%{$KEGG{$acc}})) {
+      if(exists($pathways{$keggId})) { # it should always exist !!
+        # $KEGG{$acc}{$keggId} = $pathways{$keggId};
+        my $pathway = $pathways{$keggId};
+        $KEGG{$acc}{$keggId} = $pathway;
+        # prepare this hash for later
+        $PATHWAY_INFO{$pathway}{"name"} = "";
+        $PATHWAY_INFO{$pathway}{"class"} = "";
       }
-      $dbh->commit();
-      # adding indices
-      doAndCommit($dbh, qq(CREATE INDEX mapprot ON  map(cpd)));
-      doAndCommit($dbh, qq(CREATE INDEX mappath ON  map(path)));
     }
-    
-    # disconnect from database
-    $dbh->disconnect();
-    
-    @maps = sort (uniq(@maps));
-    print scalar(@maps)." maps have been added to the database\n";
-    return @maps;
+  }
 }
 
-sub updateMaps {
-    my ($taxonomy, @maps) = @_;
+sub getConfFile { return "$DIR_CONF/".$_[0].".conf"; }
+sub getPngFile { return "$DIR_PNG/".$_[0].".png"; }
+sub getInfoFile { return "$DIR_INFO/".$_[0].".txt"; }
+sub getHtmlFile { return "$DIR_HTML/".$_[0].".html"; }
 
-    print "Updating maps from KEGG central database\n";
-    my @elements=('link', 'entry', 'number', 'org', 'name', 'image', 'title');
-    my $xs = new XML::Simple(keeproot => 1, searchpath => ".", forcearray => ['id'], KeyAttr => {entry =>"id"});
-    foreach my $map (@maps) {
-        $map =~ s/path:$taxonomy//;
-        # only update maps older than 2 month
-        if(-f "$DIR_XML/$taxonomy$map.xml") {
-            my $mtime = (-C "$DIR_XML/$taxonomy$map.xml");
-            my $delta = 30 * 2;
-            next if ((-e "$DIR_MAP/$map.png") && (-e "$DIR_CONF/$map.conf") && (-e "$DIR_XML/$taxonomy$map.xml") && (-e "$DIR_INFO/$map.txt") && ($mtime < $delta));
-        }
-        
-        # the following lines will update each file
-        restGetToFile("http://rest.kegg.jp/get/map$map", "$DIR_INFO/$map.txt");
-        restGetToFile("http://rest.kegg.jp/get/map$map/image", "$DIR_MAP/$map.png");
-        restGetToFile("http://rest.kegg.jp/get/map$map/conf", "$DIR_CONF/$map.conf");
-        # this file is in XML and has to be modified before saving
-        my $ref = $xs->XMLin(REST_GET("http://rest.kegg.jp/get/$taxonomy$map/kgml"));
-        my $entry = $ref->{pathway};
-        # remove items that are not contained in @elements
-        foreach my $id (keys %$entry) {
-            next if(grep(/$id/, @elements));
-            delete $entry->{$id};
-        }
-        # remove entries that are not gene type
-        $entry=$ref->{pathway}{entry};
-        foreach my $id (keys(%$entry)) {
-            delete $entry->{$id} if($entry->{$id}{type} ne "gene");
-        };
-        open (my $fh, ">", "$DIR_XML/$taxonomy$map.xml") or stderr("Can't open file '$DIR_XML/$taxonomy$map.xml': $!");
-        print $fh $xs->XMLout($ref);
-        close $fh;
-        sleep 10;
-    }
-}
-
-sub updateMapsCpd {
-    my (@maps) = @_;
-
-    print "Updating maps from KEGG central database\n";
-    my @elements=('link', 'entry', 'number', 'org', 'name', 'image', 'title');
-    foreach my $map (@maps) {
-        $map =~ s/path:map//;
-        # only update maps older than 2 month
-        if(-f "$DIR_XML/map$map.xml") {
-            my $mtime = (-C "$DIR_XML/map$map.xml");
-            my $delta = 30 * 2;
-            next if ((-e "$DIR_MAP/$map.png") && (-e "$DIR_CONF/$map.conf") && (-e "$DIR_INFO/$map.txt") && ($mtime < $delta));
-        }
-
-        # the following lines will update each file
-        restGetToFile("http://rest.kegg.jp/get/map$map", "$DIR_INFO/$map.txt");
-        restGetToFile("http://rest.kegg.jp/get/map$map/image", "$DIR_MAP/$map.png");
-        restGetToFile("http://rest.kegg.jp/get/map$map/conf", "$DIR_CONF/$map.conf");
-        # extract compounds from conf file
-        my @compounds;
-        open(my $fh, "<", "$DIR_CONF/$map.conf") or stderr("Can't open file '$DIR_CONF/$map.conf': $!");
-        while(<$fh>) {
-            chomp;		
-            my @line = split(/\t/);
-            next if($line[2] !~ /^C\d{5}/);
-            push (@compounds, $_);
-        }
-        close $fh;
-
-        # create the XML file (indentation of 3 space chars ; data mode 1 means line break)
-        my $output = new IO::File(">$DIR_XML/map$map.xml");
-        my $ref = new XML::Writer(OUTPUT => $output, DATA_INDENT => 3, DATA_MODE => 1, ENCODING => 'utf-8');
-        $ref->xmlDecl("UTF-8"); # is it necessary ?
-        $ref->startTag("pathway");
-        my $index = 1;
-        foreach my $compound (@compounds) {
-            my ($type, $url, $name) = split(/\t/, $compound);
-            $ref->startTag("entry", "id" => $index++, "name" => $name, "type" => "compound");
-            if($type =~ m/^rect/) {
-                $type =~ m/.+\((\d+)\,(\d+)\)\s\((\d+)\,(\d+)/;
-                my ($left, $down, $right, $up) = ($1, $2, $3, $4);
-                $ref->startTag("graphics", "bgcolor" => $COLORCODES{"G"}, "fgcolor" => $BLACK, "name" => $name, "type" => "rect", 
-                    "height" => $up - $down, "width" => $right - $left, "x" => $left + floor(($right - $left) / 2), "y" => $down + floor(($up - $down) / 2));
-                $ref->endTag("graphics");
-            } elsif($type =~ /^circ/ || $type =~ /^filled_circ/) {
-                $type =~ m/.+\((\d+)\,(\d+).+(\d+)/;
-                my ($x, $y, $radius) = ($1, $2, $3);
-                $ref->startTag("graphics", "bgcolor" => $COLORCODES{"G"}, "fgcolor" => $BLACK, "name" => $name, "type" => "circ", "width" => $radius, "x" => $x, "y" => $y);
-                $ref->endTag("graphics");
-            }
-            $ref->endTag ("entry");
-        }
-        $ref->startTag("entry", "id" => "9999", "name" => "EMPTY", "type" => "compound"); # why ??
-        $ref->endTag("entry");
-        $ref->endTag("pathway");
-        $ref->end();
-        sleep 2;
-    }
+sub isFileUpdadeRequired {
+  my ($pathway) = @_;
+  return 1 if($FORCE_FILE_UPDATE eq 1);
+  my $confFile = getConfFile($pathway);
+  return 1 if(!-f $confFile); # if the file is missing, the update is needed
+  return 1 if(!-f getPngFile($pathway)); # if the file is missing, the update is needed
+  return 1 if(!-f getInfoFile($pathway)); # if the file is missing, the update is needed
+  my $mtime = (-C $confFile);
+  return 1 if($mtime > $MAX_AGE_IN_DAYS_FOR_KEGG_FILES); # if the conf file is older than 2 months
+  return 1 if(isPngValid(getPngFile($pathway)) eq 0); # if the png file cannot be read
+  return 0; # in any other case, no need for an update
 }
 
 sub restGetToFile {
-    my ($url, $outputFile) = @_;
-    open (my $fh, ">", "$outputFile") or stderr("Can't create file '$outputFile': $!");
-    print $fh REST_GET($url);
-    close $fh;
+  my ($url, $toFile) = @_;
+  my $file = downloadFile($url);
+  move($file, $toFile);
 }
 
-sub cleanMaps {
-    my ($taxonomy, @maps) = @_;
-
-    # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr);
-    
-    # Remove proteins not use in map file
-    my $xs = new XML::Simple(keeproot => 1, searchpath => ".", forcearray => ['id'], KeyAttr => {entry =>"id"});
-    my $sql_1 = "SELECT COUNT(keggid) FROM view_map WHERE keggid=?";
-    $sql_1 = "SELECT COUNT(cpd) FROM view_map WHERE cpd=?" if($PARAMS{"type"} ne "uniprot");
-    foreach my $map (@maps) {
-        $map =~ s/path:$taxonomy//;
-        # create a temporary view
-        $dbh->do("DROP VIEW IF EXISTS view_map");
-        my $sql_c = "CREATE TEMP VIEW view_map AS SELECT keggid FROM map WHERE path=\"path:$taxonomy$map\"";
-        $sql_c = "CREATE TEMP VIEW view_map AS SELECT cpd FROM map WHERE path=\"path:map$map\"" if($PARAMS{"type"} ne "uniprot");
-        my $sth = $dbh->prepare($sql_c);
-        $sth->execute();
-        my $sth_1 = $dbh->prepare($sql_1);
-        my $ref = $xs->XMLin("$DIR_XML/$taxonomy$map.xml");
-        my $entry = $ref->{pathway}{entry};
-        foreach my $id (keys %$entry) {
-            my @names = split(/ /, $entry->{$id}{name});
-            my $flag = 0;
-            foreach (@names) {
-                $sth_1->execute($_);
-                while (my @row = $sth_1->fetchrow_array()) {
-                    $flag++ if($row[0] > 0);
-                }
-            }
-            delete $entry->{$id} if (!$flag);
-        }
-        my $xml = $xs->XMLout($ref);
-        open (my $fh, ">", "$DIR_DRAW/draw$map.xml") or stderr("Can't write file '$DIR_DRAW/draw$map.xml': $!");
-        print $fh $xml;
-        close $fh;
-    }
-
-    $dbh->disconnect();
+sub downloadPathway {
+  my ($pathway, $type, $outputFile) = @_;
+  my $url = url_exists("$KEGG_URL/get/$TAXONOMY$pathway/$type") ? "$KEGG_URL/get/$TAXONOMY$pathway/$type" : "$KEGG_URL/get/map$pathway/$type";
+  restGetToFile($url, $outputFile);
 }
 
-sub prepareDrawing {
-    my ($taxonomy) = @_;
-
-    # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr);
-
-    # prepare XML reader
-    my $xs = new XML::Simple(keeproot => 1, searchpath => ".", forcearray => ['id'], KeyAttr => {entry =>"id"});
-
-    foreach my $map (glob("$DIR_DRAW/*.xml")) {
-        my ($number) = $map =~ /(\d+)/;
-        $dbh->do("DROP VIEW IF EXISTS view_map");
-        my $sql_c = "CREATE VIEW view_map AS SELECT protein, color, keggid FROM map WHERE path=\"path:$taxonomy$number\"";
-        $sql_c = "CREATE VIEW view_map AS SELECT cpd, color, path FROM map WHERE path=\"path:map$number\"" if($PARAMS{"type"} ne "uniprot");
-        my $sth = $dbh->prepare($sql_c);
-        $sth->execute();
-        my $ref = $xs->XMLin($map);
-        my $entry = $ref->{pathway}{entry};
-        # draw rectangle in Yellow
-        foreach my $id (keys %$entry) {
-            next if((!looks_like_number($id)) && ($id ne "id"));
-            if(looks_like_number($id)) {
-                if(ref($entry->{$id}{graphics}) eq "HASH" ) {
-                    $entry->{$id}{graphics}{bgcolor} = $COLORCODES{"Y"};
-                    ($entry->{$id}{graphics}{name}, $entry->{$id}{graphics}{bgcolor}) = hsaToProtein(\$dbh, $entry->{$id}{name});
-                } elsif(ref($entry->{$id}{graphics}) eq "ARRAY") {
-                    foreach my $graphic (@{$entry->{$id}{graphics} }) {
-                        $graphic->{bgcolor} = $COLORCODES{"Y"};
-                        ($graphic->{name}, $graphic->{bgcolor}) = hsaToProtein(\$dbh, $entry->{$id}{name});
-                    }
-                }
-            } else {
-                if(ref($entry->{graphics}) eq "ARRAY") {
-                    foreach my $graphic (@{$entry->{graphics}}) {
-                        $graphic->{bgcolor} = $COLORCODES{"Y"};
-                        ($graphic->{name}, $graphic->{bgcolor}) = hsaToProtein(\$dbh, $entry->{$id}{name});
-                    } 
-                } else {
-                    $entry->{graphics}{bgcolor} = $COLORCODES{"Y"};
-                    ($entry->{graphics}{name}, $entry->{graphics}{bgcolor}) = hsaToProtein(\$dbh, $entry->{name});					
-                }
-            };				
-            
-        };
-        open (my $fh, ">", $map) or stderr("Can't open file '$map': $!");
-        print $fh $xs->XMLout($ref);
-        close $fh;
-        $sth->finish;
-    }
-    $dbh->do("DROP VIEW IF EXISTS view_map");
-    $dbh->disconnect();
+sub isPngValid {
+  my ($pngFile) = @_;
+  my ($width, $height) = imgsize($pngFile);
+  return 0 if(!$width || !$height);
+  return 1;
 }
 
-sub hsaToProtein {
-    my ($dbh, $names) = @_;
-    my $sql = "SELECT protein, color FROM view_map WHERE keggid=? AND color=?";
-    $sql = "SELECT cpd, color FROM view_map WHERE cpd=? AND color=?" if($PARAMS{"type"} ne "uniprot");
-    my $sth = $$dbh->prepare($sql);
-    my $protein = "";
-    my %colors = ("Y" => 0, "B" => 0, "R" => 0, "G" => 0);
-    # the order is important for later !
-    foreach my $color ("Y", "B", "R", "G") {
-        foreach my $name (split(/ /, $names)) {
-            $sth->execute($name, $color);
-            while (my @row = $sth->fetchrow_array()) {
-                $protein .= $row[0]."|";
-                $colors{$row[1]}++;
-            }
-        }
-    }
-	
-    my $sumcolor = "";
-    my $total = 0;
-    foreach my $color ("Y", "B", "R", "G") {
-        $sumcolor .= $colors{$color}."|";
-        $total += $colors{$color};
-    }
-    $protein =~ s/\|$//;
-    $sumcolor .= $total;
-    return ($protein, $sumcolor);
-}
-
-sub createSvgFiles {
-    # prepare XML reader
-    my $xs = new XML::Simple(keeproot => 1, searchpath => ".", forcearray => ['id'], KeyAttr => {entry =>"id"});
-    # treat each map
-    foreach my $map (glob("$DIR_DRAW/*.xml")) {
-        my ($num) = $map =~ /(\d+)/;
-        # sometimes the png file is somehow incomplete and Windows says it cannot read it
-        # the svg file can still be generated with most information, but the borders are not right
-        my $png = "$DIR_MAP/$num.png";
-        my ($width, $height) = imgsize($png);
-        $width = 0 unless(looks_like_number($width));
-        $height = 0 unless(looks_like_number($height));
-        # using MIME::Base64 should be equivalent to linux base64 command
-        my $delta = 100;
-        my $svg = SVG->new(width  => $width + $delta, height => $height + $delta);
-        my $tag = $svg->image(x => 22, y => 8, width => $width, height => $height, '-href' => "data:image/png;base64,".getBase64($png), id => 'image_1');
-
-        # read XML file
-        # TODO check if this loop can be merged with the one from prepareDrawing
-        my $ref = $xs->XMLin($map);
-        my $entry = $ref->{pathway}{entry};
-        foreach my $id (keys(%$entry)) {
-            next if((!looks_like_number($id)) && ($id ne "id")); 
-            if(looks_like_number($id)) {
-                if(ref($entry->{$id}{graphics}) eq "HASH" ) {
-                    $svg = draw($entry->{$id}{graphics}, $svg, $id);
-                } elsif(ref($entry->{$id}{graphics}) eq "ARRAY") {
-                    foreach my $graphic (@{$entry->{$id}{graphics}}) {
-                        $svg = draw($graphic, $svg, $id);
-                    }
-                }
-            } else {
-                if(ref($entry->{graphics}) eq "ARRAY") {
-                    foreach my $graphic (@{$entry->{graphics}}) {
-                        $svg = draw($graphic, $svg, $id);
-                    }
-                } else {
-                    $svg = draw($entry->{graphics}, $svg, $id);
-                }
-            }		
-        };
-        open (my $fh, ">", "$DIR_SVG/$num.svg") or stderr("Can't create file '$DIR_SVG/$num.svg': $!");
-        print $fh $svg->xmlify;
-        close $fh;
-    }
-}
-
-sub getBase64 {
-    open (my $fh, "<", $_[0]) or stderr("$!");
-    binmode($fh);
-    local $/;
-    my $file_contents = <$fh>;
-    close $fh;
-    return encode_base64($file_contents);
-}
-
-sub draw {
-    my ($ptEntry, $svg, $id) = @_;
-    my %entry = %{$ptEntry};
-    
-    # array of colors, same order as in hsaToProtein !
-    my @colorIdx = ("Y", "B", "R", "G");
-    if ($entry{type} eq "rectangle") {
-        # colorize the existing rectangle
-        # bgcolor="1|0|2|0|3" => 1 yellow, 2red, 3 in total
-        my @colors = split(/\|/, $entry{bgcolor});
-        my $total = pop(@colors); # last entry is the total
-        $total = scalar(@colors) if($total == 0); # in case bgcolor = '0|0|0|0|0'
-        my $deltaX = 0;
-        my $x = $entry{x};
-        my $y = $entry{y};
-        my $i = 0;
-        foreach my $value (@colors) {
-            my $color = $colorIdx[$i];
-            # calculate the percentage of the rectangle (if multiple colors)
-            my $widthSize = int((($value / $total) * $entry{width}) + 0.5);
-            $svg->rectangle(
-                x => $x + $deltaX, y => $y,
-                width	=> $widthSize, height => $entry{height},
-                id => "ID$id$color",
-                style => { stroke => $BLACK, fill => $COLORCODES{$color}, 'fill-opacity' => 0.7 },
-            );
-            $deltaX = $deltaX + $widthSize;
-            $i++;
-        }
-
-        # add a tooltip to display the protein name(s)
-        my $tag = $svg->group(id => 'ID'.$id.'GR', visibility => "hidden");
-        $deltaX = 0;
-        my @names = split(/\|/, $entry{name});
-        my $first = 0;
-        $i = 0;
-        foreach my $value (@colors) {
-            $i++;
-            next if($value == 0);
-            my $color = $colorIdx[$i-1];
-            my $name = join("|", @names[$first .. $first + ($value - 1)]);
-            $first += $value;
-            my $widthSize = length($name) * 10 + 5; # using base 10
-            # create one rectangle per color
-            $tag->rectangle(
-                x => ($x + 5) + $deltaX, y => $y - 30, 
-                width => $widthSize, height => 25, 
-                id => $id.'RE'.$color,
-                style => { stroke => $BLACK, fill => $COLORCODES{$color}, 'fill-opacity' => 1 }, # set full opacity
-            );
-            # TODO check if it's correct (+= instead of =)
-            #$deltaX += $deltaX + $widthSize; # looks good
-            $deltaX += $widthSize; # looks just the same !?! (it must not be important)
-        }
-        $tag->text(id => $id.'T', x => $x + 10, y => $y - 12, fill => $BLACK, 'fill-opacity' => 1, -cdata => $entry{name});
-        
-        foreach (@colorIdx) {
-            my $svgId = 'ID'.$id.$_;
-            $tag->set(attributeName => "visibility", from => "hidden", to => "visible", begin => "$svgId.mouseover", end => "$svgId.mouseout");
-        }
-    } elsif($PARAMS{"type"} ne "uniprot" && ($entry{type} eq "circ" || $entry{type} eq "filled_circ")) {
-        # colorize the existing circle
-        my $x = $entry{x} + 22;
-        my $y = $entry{y} + 8;
-        my $fill = $entry{bgcolor};
-        # bgcolor="1|0|2|0|3" => 1 yellow, 2red, 3 in total
-        my @colors = split(/\|/, $entry{bgcolor});
-        my $total = pop(@colors); # last entry is the total
-        my $drawId = "";
-        my $i = 0;
-        foreach my $value (@colors) {
-            my $color = $colorIdx[$i++];
-            my $widthSize = int((($value / $total) * $entry{width}) + 0.5);
-            next if ($widthSize == 0);
-            $drawId = 'ID'.$id.$color;
-            $svg->circle(cx => $x, cy => $y, r => $widthSize, id => $drawId, style => { stroke => $BLACK, fill => $COLORCODES{$color}, 'fill-opacity' => 1.0 });
-            $svg->circle(cx => $x, cy => $y, r	=> 8, id => $drawId."1", style => { stroke => $BLACK, fill => $COLORCODES{$color}, 'fill-opacity' => 0.3 });
-        }
-
-        # add a tooltip to display the protein name(s) ?
-        my $tag = $svg->group(id => 'ID'.$id.'GR', visibility => "hidden");
-        my $deltaX = 0;
-        my @names = split(/\|/, $entry{name});
-        my $first = 0;
-        $i = 0;
-        foreach my $value (@colors) {
-            next if($value == 0);
-            my $color = $colorIdx[$i++ - 1];
-            my $name = join("|", @names[$first .. $first + ($value - 1)]);
-            $first += $value;
-            my $widthSize = length($name) * 10 + 5; # using base 10
-            # create one rectangle per color
-            $tag->rectangle(
-                x => ($x + 5) + $deltaX, y => $y - 30, 
-                width => $widthSize, height => 25, 
-                id => $id.'RE'.$color,
-                style => { stroke => $BLACK, fill => $COLORCODES{$color}, 'fill-opacity' => 1 }, # set full opacity
-            );
-            # TODO check if it's correct (+= instead of =)
-            #$deltaX += $deltaX + $widthSize; # looks good
-            $deltaX += $widthSize; # looks just the same !?! (it must not be important)
-        }
-        $tag->text(id => $id.'T', x => $x + 10, y => $y - 8, fill => $BLACK, 'fill-opacity' => 1.0, -cdata => $entry{name});
-        # add the action to show/hide the tooltip
-        my $svgId = $drawId."1";
-        $tag->set(attributeName => "visibility", from => "hidden", to => "visible", begin => "$svgId.mouseover", end => "$svgId.mouseout");
-    }
-    return ($svg);
-}
-
-sub writeExcelOutput {
-    my ($ptHeaders, $taxonomy, $outputFile) = @_;
-
-    print "Writing final Excel file\n";
-    # connection
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$SQLITEDB", "", "") or stderr($DBI::errstr);
-    # create file
-    my $workbook = Excel::Writer::XLSX->new($outputFile);
-    
-    # prepare formats
-    my $formatH = $workbook->add_format(bold => 1, bottom => 1, valign => 'top', text_wrap => 1);
-    my $formatMaps = $workbook->add_format(valign => 'top', text_wrap => 1);
-    my $formatY = $workbook->add_format(valign => 'top', bg_color => '#ffe333');
-    my $formatR = $workbook->add_format(valign => 'top', bg_color => '#ff4c33');
-    my $formatG = $workbook->add_format(valign => 'top', bg_color => '#53c326');
-    my $formatB = $workbook->add_format(valign => 'top', bg_color => '#428fd3');
-
-    # add input data and parameters
-    my $sheet = $workbook->add_worksheet("Data");
-    my $rowNumber = 0;
-    # add parameters first
-    writeExcelLine($sheet, $rowNumber++, "Date", getDate("%Y/%m/%d"));
-    writeExcelLine($sheet, $rowNumber++, "P-value threshold", $PARAMS{"Statistics"}{"anova"}) unless($PARAMS{"Statistics"}{"value"} eq "none");
-    writeExcelLine($sheet, $rowNumber++, "Fold Change threshold", $PARAMS{"Statistics"}{"fc"}) if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    writeExcelLine($sheet, $rowNumber++, "Tukey threshold", $PARAMS{"Statistics"}{"tukey"}) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    $rowNumber++; # add an empty line
-    # then headers
-    my $headerLine = $rowNumber;
-    # writeExcelLineF($sheet, $rowNumber++, $formatH, @{$ptHeaders});
-    my @headers = @{$ptHeaders};
-    splice(@headers, 1, 0, 'Uniprot entry') if($PARAMS{"type"} eq "uniprot");
-    writeExcelLineF($sheet, $rowNumber++, $formatH, @headers);
-    $sheet->freeze_panes($rowNumber);
-    # then the data
-    if($PARAMS{"type"} eq "uniprot") {
-      for(my $i = 0; $i < scalar(keys(%DATA)); $i++) {
-        writeExcelLine($sheet, $rowNumber++, $DATA{$i}{"A"}, $DATA{$i}{"Entry"}, $DATA{$i}{"B"}, $DATA{$i}{"C"}, $DATA{$i}{"D"});
-      }
-    } else {
-      for(my $i = 0; $i < scalar(keys(%DATA)); $i++) {
-        writeExcelLine($sheet, $rowNumber++, $DATA{$i}{"A"}, $DATA{$i}{"B"}, $DATA{$i}{"C"}, $DATA{$i}{"D"});
-      }
-    }
-    $sheet->autofilter($headerLine, 0, $rowNumber - 1, scalar(@headers) - 1);
-    my @columnsWidth = (30);
-    push(@columnsWidth, 30) if($PARAMS{"type"} eq "uniprot");
-    push(@columnsWidth, 15);
-    push(@columnsWidth, 15)if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    push(@columnsWidth, 15) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
-    setColumnsWidth($sheet, @columnsWidth);
-    
-    # add map sheet
-    $sheet = $workbook->add_worksheet("Maps");
-    $rowNumber = 0;
-    my $field = ($PARAMS{"type"} eq "uniprot" ? "protein" : "cpd");
-    writeExcelLineF($sheet, $rowNumber++, $formatH, ($PARAMS{"type"} eq "uniprot" ? "Accession numbers" : "Identifiers"), "Status", "Nb maps", "Pathway Map:level_1:level_2");
-    $sheet->freeze_panes($rowNumber);
-    my $rows = $dbh->selectall_arrayref("SELECT $field, color, count($field) FROM map GROUP BY $field");
-    foreach my $acc (@$rows) {
-        my $pathes = $dbh->selectall_arrayref("SELECT path FROM map WHERE $field='$$acc[0]'");
-        my @maps;
-        foreach my $path (@$pathes) {
-            my ($num) = $$path[0] =~ /(\d+)/;
-            my ($name, $class) = extractInfo("$DIR_INFO/$num.txt");
-            if (length($class) == 0){
-                push(@maps, "map:$num:$name");
-            } else {
-                push(@maps, "map:$num:$name:$class");
-            };
-        }
-        my ($ac, $color, $nb) = @$acc;
-        writeExcelLineF($sheet, $rowNumber, $formatMaps, $ac, "", $nb, join("\n", @maps));
-        # adjust line height
-        $sheet->set_row($rowNumber, $nb * 12) if($nb > 1);
-        # colorize the Color cell
-        if($color eq "Y") { $sheet->write($rowNumber++, 1, $COLORMEANING{$color}, $formatY);
-        } elsif($color eq "G") { $sheet->write($rowNumber++, 1, $COLORMEANING{$color}, $formatG);
-        } elsif($color eq "B") { $sheet->write($rowNumber++, 1, $COLORMEANING{$color}, $formatB);
-        } elsif($color eq "R") { $sheet->write($rowNumber++, 1, $COLORMEANING{$color}, $formatR);
-        }
-    }
-    $sheet->autofilter(0, 0, $rowNumber - 1, 3);
-    setColumnsWidth($sheet, 25, 30, 15, 100);
-    
-    # add pathway sheet
-    $sheet = $workbook->add_worksheet("Pathways");
-    $rowNumber = 0;
-    if($PARAMS{"type"} eq "uniprot") {
-      writeExcelLineF($sheet, $rowNumber++, $formatH, "Map", "Name", "Level 1", "Level 2", "Nb proteins", "Proteins");
-    } else {
-      writeExcelLineF($sheet, $rowNumber++, $formatH, "Map", "Name", "Level 1", "Level 2", "Nb compounds", "Compounds");
-    }
-    $sheet->freeze_panes($rowNumber);
-    foreach my $map (glob("$DIR_DRAW/*.xml")) {
-        my ($num) = $map =~ /(\d+)/;
-        my ($name, $class) = extractInfo("$DIR_INFO/$num.txt");
-        my ($level1, $level2) = ("", "");
-        ($level1, $level2) = split("; ", $class) if(length($class) != 0);
-        $dbh->do("DROP VIEW IF EXISTS view_map");
-        my $sql = "";
-        if($PARAMS{"type"} eq "uniprot") {
-            $sql = "CREATE VIEW view_map AS SELECT protein, color, keggid FROM map WHERE path=\"path:$taxonomy$num\"";
-        } else {
-            $sql = "CREATE VIEW view_map AS SELECT cpd, color, path FROM map WHERE path=\"path:map$num\"";
-        }
-        my $sth = $dbh->prepare($sql);
-        $sth->execute();
-        my @rows = @{$dbh->selectall_arrayref("SELECT $field FROM view_map")};
-        my $proteins = "";
-        foreach my $acc (@rows) {
-            $proteins .= "@$acc,";
-        }
-        $proteins =~ s/\,$//;
-        writeExcelLine($sheet, $rowNumber++, "$taxonomy$num", $name, $level1, $level2, scalar(@rows), $proteins);
-    }
-    $sheet->autofilter(0, 0, $rowNumber - 1, 5);
-    setColumnsWidth($sheet, 15, 50, 40, 40, 15, 50);
-
-    $dbh->disconnect();
-    $workbook->close();
-    print "Excel file '$outputFile' is complete\n";
-
+sub updateKeggFile {
+  my ($pathway) = @_;
+  print "Updating files related to pathway $pathway\n";
+  # download all the required files for this pathway
+  downloadPathway($pathway, "", getInfoFile($pathway));
+  downloadPathway($pathway, "conf", getConfFile($pathway));
+  my $pngFile = getPngFile($pathway);
+  downloadPathway($pathway, "image", $pngFile);
+  # check that the image has been correctly downloaded (limit to 5 tries to avoid infinite loops)
+  my $i = 0;
+  while(isPngValid($pngFile) ne 1 && $i++ < 5) {
+    sleep 2;
+    restGetToFile("$KEGG_URL/get/$TAXONOMY$pathway/image", $pngFile);
+  }
 }
 
 sub extractInfo {
-    my ($file) = @_;
-    open(my $fh, "<", $file) or stderr("Can't open file '$file': $!");
-    my $name = "";
-    my $class = "";
-    while(<$fh>) {
-        chomp;
-        $name = $1 if(m/^NAME\s+(.*)/);
-        $class = $1 if(m/^CLASS\s+(.*)/);
-        last if($name ne "" && $class ne "");
-    }
-    close $fh;
-    return ($name, $class);
+  my ($pathway) = @_;
+  my $file = getInfoFile($pathway);
+  open(my $fh, "<", $file) or stderr("Can't open file '$file': $!");
+  my $name = "";
+  my $class = "";
+  while(<$fh>) {
+    chomp;
+    $PATHWAY_INFO{$pathway}{"name"} = $1 if(m/^NAME\s+(.*)/);
+    $PATHWAY_INFO{$pathway}{"class"} = $1 if(m/^CLASS\s+(.*)/);
+    last if(exists($PATHWAY_INFO{$pathway}{"name"}) && exists($PATHWAY_INFO{$pathway}{"class"}));
+  }
+  close $fh;
 }
 
+sub downloadUpdateGenerate {
+  my %pathways;
+  my $i = 0;
+  my $total = scalar(keys(%PATHWAY_INFO));
+  foreach my $acc (keys(%KEGG)) {
+    foreach my $keggId (keys(%{$KEGG{$acc}})) {
+      foreach my $pathway (@{$KEGG{$acc}{$keggId}}) {
+        $pathway =~ s/path:$TAXONOMY//;
+        if(!exists($pathways{$pathway})) {
+          # download the corresponding files if they are missing or too old
+          updateKeggFile($pathway) if(isFileUpdadeRequired($pathway) eq 1);
+          # extract information for this pathway
+          extractInfo($pathway);
+          # generate the HTML file
+          createHtmlFile(getConfFile($pathway), getPngFile($pathway), $PATHWAY_INFO{$pathway}{"name"}, getHtmlFile($pathway), \%KEGG, \%DATA, \%STATUS, $WITH_SITES);
+          # keep the pathway in a hash to avoid checking it more than once
+          $pathways{$pathway} = 1;
+          $i++;
+          print "$i/$total pathways have been treated\n" if($i % 50 == 0); # show progression
+        }
+      }
+    }
+  }
+}
 
+sub prepareFormats {
+  my ($workbook) = @_;
+  # prepare formats
+  my %formats;
+  $formats{"H"} = $workbook->add_format(bold => 1, bottom => 1, valign => 'top', text_wrap => 1);
+  $formats{"maps"} = $workbook->add_format(valign => 'top', text_wrap => 1);
+  foreach my $status (keys(%STATUS)) {
+    $formats{$status} = $workbook->add_format(valign => 'top', bg_color => $STATUS{$status}{"color"});
+  }
+  return \%formats;
+}
+
+sub addParameterSheet {
+  my ($workbook) = @_;
+  my $sheet = addWorksheet($workbook, "Parameters");
+  my $rowNumber = 0;
+  writeExcelLine($sheet, $rowNumber++, "Version", getVersion());
+  writeExcelLine($sheet, $rowNumber++, "Date", getDate("%Y/%m/%d"));
+  writeExcelLine($sheet, $rowNumber++, "P-value threshold", $PARAMS{"Statistics"}{"anova"}) unless($PARAMS{"Statistics"}{"value"} eq "none");
+  writeExcelLine($sheet, $rowNumber++, "Fold Change threshold", $PARAMS{"Statistics"}{"fc"}) if($PARAMS{"Statistics"}{"value"} eq "anova_fc" || $PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+  writeExcelLine($sheet, $rowNumber++, "Tukey threshold", $PARAMS{"Statistics"}{"tukey"}) if($PARAMS{"Statistics"}{"value"} eq "anova_fc_tukey");
+  setColumnsWidth($sheet, 25, 10);
+  $sheet->activate(); # display this sheet directly when opening the file
+}
+
+sub addMapSheet {
+  my ($workbook, $formats) = @_;
+  my $sheet = addWorksheet($workbook, "Maps");
+  my $rowNumber = 0;
+  my @headers = $IS_UNIPROT eq 1 ? ("User entry", "UniProt identifier") : ("Identifier");
+  push(@headers, "Site") if($WITH_SITES eq 1);
+  push(@headers, ("Status", "# Maps", "Pathway Map:level_1:level_2"));
+  writeExcelLineF($sheet, $rowNumber++, $formats->{"H"}, @headers);
+  $sheet->freeze_panes($rowNumber);
+  # loop on %DATA ($DATA{userId_i}{site} = status_key) and %KEGG ($KEGG{userId_i}{keggId} = array(pathway))
+  my %entriesPerPathway; # store this relation on the fly, rather than searching in the database or in the files
+  foreach my $userId (sort(keys(%DATA))) {
+    # get pathways
+    my @pathways;
+    foreach my $keggId (keys(%{$KEGG{$userId}})) {
+      foreach my $pathway (@{$KEGG{$userId}{$keggId}}) { # ("path:hsa01100", ...)
+        my $name = exists($PATHWAY_INFO{$pathway}{"name"}) ? $PATHWAY_INFO{$pathway}{"name"} : "";
+        my $class = exists($PATHWAY_INFO{$pathway}{"class"}) ? $PATHWAY_INFO{$pathway}{"class"} : "";
+        my ($num) = $pathway =~ /(\d+)/;
+        my $map = length($class) == 0 ? "map:$num:$name" : "map:$num:$name:$class";
+        push(@pathways, $map);
+        $entriesPerPathway{$pathway}{$userId} = 1;
+      }
+    }
+    # write one line per site
+    foreach my $site (keys(%{$DATA{$userId}})) {
+      my $status = $DATA{$userId}{$site};
+      my @cells = $IS_UNIPROT eq 1 ? ($userId, $USERID_PER_UNIPROT_ENTRY{$userId}) : ($userId);
+      push(@cells, $site) if($WITH_SITES eq 1);
+      push(@cells, "", scalar(@pathways), join("\n", @pathways));
+      writeExcelLineF($sheet, $rowNumber, $formats->{"maps"}, @cells);
+      $sheet->write($rowNumber++, $IS_UNIPROT eq 1 ? 3 : 2, $STATUS{$status}{"text"}, $formats->{$status});
+    }
+  }
+  $sheet->autofilter(0, 0, $rowNumber - 1, scalar(@headers) - 1);
+  my @colWidth = (25, 30, 15, 100);
+  splice(@colWidth, 1, 0, 10) if($WITH_SITES eq 1); # add the value for the 'site' column if the column is present
+  unshift(@colWidth, 25) if($IS_UNIPROT eq 1); # add the value at the beginning of the array
+  setColumnsWidth($sheet, @colWidth);
+  return \%entriesPerPathway;
+}
+
+sub addPathwaySheet {
+  my ($workbook, $entriesPerPathway, $formats) = @_;
+  my $sheet = addWorksheet($workbook, "Pathways");
+  my $rowNumber = 0;
+  my @headers = ("Map", "Name", "Level 1", "Level 2", "Nb identifiers", "Identifiers");
+  splice(@headers, 5, 0, "Nb sites") if($WITH_SITES eq 1);
+  writeExcelLineF($sheet, $rowNumber++, $formats->{"H"}, @headers);
+  $sheet->freeze_panes($rowNumber);
+  foreach my $pathway (sort(keys(%$entriesPerPathway))) {
+    my ($num) = $pathway =~ /(\d+)/;
+    my $name = exists($PATHWAY_INFO{$pathway}{"name"}) ? $PATHWAY_INFO{$pathway}{"name"} : "";
+    my $class = exists($PATHWAY_INFO{$pathway}{"class"}) ? $PATHWAY_INFO{$pathway}{"class"} : "";
+    my ($level1, $level2) = ("", "");
+    ($level1, $level2) = split("; ", $class) if(length($class) != 0);
+    my @entries = sort(keys(%{$entriesPerPathway->{$pathway}}));
+    my $nbSites = 0;
+    foreach my $userId (@entries) {
+      $nbSites += scalar(keys(%{$DATA{$userId}}));
+    }
+    my @cells = ("$TAXONOMY$num", $name, $level1, $level2, scalar(@entries), join(", ", sort(@entries)));
+    splice(@cells, 5, 0, $nbSites) if($WITH_SITES eq 1);
+    writeExcelLine($sheet, $rowNumber++, @cells);
+  }
+  $sheet->autofilter(0, 0, $rowNumber - 1, $WITH_SITES eq 1 ? 6 : 5);
+  if($WITH_SITES eq 1) {
+    setColumnsWidth($sheet, 15, 50, 40, 40, 15, 15, 50);
+  } else {
+    setColumnsWidth($sheet, 15, 50, 40, 40, 15, 50);
+  }
+}
+
+sub writeExcelOutput {
+  my ($inputFile, $outputFile) = @_;
+  
+  # create file based on the original file (so we do not need to rewrite everything)
+  my ($self, $workbook) = Excel::Template::XLSX->new($outputFile, $inputFile);
+  $self->parse_template();
+  
+  # prepare formats
+  my $formats = prepareFormats($workbook);
+  # add a first sheet with the parameters and global information
+  addParameterSheet($workbook, $formats);
+  # add a sheet with results per protein/compound
+  my $entriesPerPathway = addMapSheet($workbook, $formats);
+  # add a sheet with results per pathway
+  addPathwaySheet($workbook, $entriesPerPathway, $formats);
+  
+  # close the workbook
+  $workbook->close();
+  
+}
+
+sub start {
+  # clean stuff just in case
+  mkdir($DIR_HTML) unless(-d $DIR_HTML);
+  unlink(glob("$DIR_HTML/*"));
+
+  # read the input file
+  print "Extracting data from the input file\n";
+  extractData();
+
+  # make sure the uniprot identifiers are the good ones
+  # what is expected is the Entry, and not the Entry name (ie. P0DPI2 instead of GAL3A_HUMAN)
+  getUniprotEntries() if($IS_UNIPROT eq 1);
+
+  # detect the taxonomy based on the first protein ID
+  print "Detecting the taxonomy...\n";
+  detectTaxonomy();
+  
+  # prepare the main hashes
+  print "Get the updated list of Kegg pathways\n";
+  getKeggIdsAndPathways();
+  
+  # update the kegg files older than 2 months
+  print "Update the required Kegg files and generate the corresponding HTML files\n";
+  downloadUpdateGenerate();
+  
+  # create excel output
+  print "Writing final Excel file\n";
+  writeExcelOutput($PARAMS{"inputFile"}, $outputFile);
+
+  # compress the HTML folder at the end
+  print "Creating zip file with all HTML files\n";
+  archive($zipFile, $DIR_HTML);
+
+  # clean stuff at the end
+  unlink(glob("$DIR_HTML/*"));
+  rmdir($DIR_HTML);
+}

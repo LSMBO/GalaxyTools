@@ -1,4 +1,4 @@
-<tool id="kegg" name="Kegg" version="1.1.1">
+<tool id="kegg" name="Kegg" version="2.0.0">
     <description>Get Kegg maps from Uniprot entries or Kegg identifiers</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/kegg.pl '$inputs' '$output_xlsx' '$output'
@@ -12,6 +12,7 @@
             <option selected="true" value="uniprot">Uniprot accession numbers</option>
             <option value="kegg">Kegg identifiers</option>
         </param>
+        <param type="boolean" name="withSites" checked="false" label="Statistics match for a site per identifier" help="Use this option if your input file contains scores matching for an identifier and a site (two separate columns)" />
         <conditional name="Statistics">
             <param name="value" type="select" label="Statistical validation" >
                 <option value="none">No statistics</option>
@@ -57,9 +58,9 @@
 
     Automatic extraction of KEGG Pathway Maps assigned to given proteins (from Swissprot accession numbers) or directly from Kegg identifiers.
     Returns a user-friendly Excel file with the Kegg maps and pathways for each protein/id.
-    Also returns a zip files with all the maps in SVG format.
+    Also returns a zip files with all the maps in HTML format.
 
-    The color code used in the Excel file along with the SVG files is the following :
+    The color code used in the Excel file along with the HTML files is the following :
 
     * Yellow: Does not satisfy p-value criteria (and Tukey is provided)
     * Blue: Satisfies p-value criteria (and Tukey is provided)
@@ -74,7 +75,7 @@
     * The input file has to be an Excel file.
     * Data is expected to be in the first sheet and start at the beginning of the sheet.
     * First line is considered as a header line.
-    * Column A has to contain protein accession numbers (such as 'P48444')
+    * Column A has to contain protein accession numbers (such as 'P48444'). If you have a second column representing the site of the protein, do not forget to check the box above.
     * If you have p-values
         * Column B has to contain p-values
     * If you have p-values and Fold Change values
