@@ -20,7 +20,7 @@ use POSIX qw(strftime);
 
 # only export these methods so they can be used without specifying the namespace
 use Exporter qw(import);
-our @EXPORT = qw(archive booleanToString checkUniprotFrom decompressGunzip decompressZip extractListEntries extractListEntriesInArray getContactMailAddress getDate getFileNameFromArchive getLinesPerIds getSetting parameters randomSubset stderr stdwarn);
+our @EXPORT = qw(archive booleanToString checkUniprotFrom decompressGunzip decompressZip extractListEntries extractListEntriesInArray getContactMailAddress getDate getFileNameFromArchive getLinesPerIds getSetting getVersion parameters randomSubset stderr stdwarn);
 
 
 ###################
