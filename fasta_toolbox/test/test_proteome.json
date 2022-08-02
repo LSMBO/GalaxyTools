@@ -1,0 +1,15 @@
+{
+  "name": "output",
+  "initials": "ABU",
+  "toolbox": {
+    "source": "SP",
+    "taxo": "UP000000589,UP000005640",
+    "genopts": "None",
+    "action": "proteome"
+  },
+  "options": {
+    "contaminants": true,
+    "exclude": "None"
+  },
+  "decoy": true
+}

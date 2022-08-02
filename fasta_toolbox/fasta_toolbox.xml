@@ -1,4 +1,4 @@
-<tool id="fasta_toolbox" name="Fasta toolbox" version="1.3.2">
+<tool id="fasta_toolbox" name="Fasta toolbox" version="1.4.0">
     <description>Generation of Fasta files</description>
     <macros>
         <import>macroCrap.xml</import>
@@ -33,6 +33,7 @@
       <conditional name="toolbox">
         <param name="action" type="select" display="radio" label="Fasta content">
           <option value="generate" selected="true">Generate from taxonomy ids</option>
+          <option value="proteome" selected="true">Generate from proteome ids</option>
           <option value="merge">Merge fasta files</option>
         </param>
         <when value="generate">
@@ -42,13 +43,26 @@
             <option value="TR">TrEMBL (non-reviewed proteins only)</option>
             <option value="UN">UniprotKB (Swiss-Prot and TrEMBL)</option>
           </param>
-          <!-- Taxonomy ids (add link to ncbi/uniprot taxonomy page here) -->
           <param name="taxo" size="50" type="text" value="" optional="false" label="Taxonomy ids, separated by commas (ie. '9606,7215')" help="Taxonomies are available here: https://www.ncbi.nlm.nih.gov/taxonomy">
             <validator type="regex" message="Numeric ids separated by comma">^([0-9]+,\s*)*[0-9]+$</validator>
           </param>
 
           <param name="genopts" type="select" display="checkboxes" multiple="true" label="Uniprot options">
-            <option value="proteome">Restrain to reference proteomes only (more information here: https://www.uniprot.org/help/reference_proteome)"</option>
+            <option value="isoforms">Include protein isoforms</option>
+          </param>
+        </when>
+        <when value="proteome">
+          <!-- Source -->
+          <param name="source" type="select" label="Source" help="From which database do you want to extract your sequences ?" >
+            <option value="SP" selected="true">Swiss-Prot (reviewed proteins only)</option>
+            <option value="TR">TrEMBL (non-reviewed proteins only)</option>
+            <option value="UN">UniprotKB (Swiss-Prot and TrEMBL)</option>
+          </param>
+          <param name="taxo" size="50" type="text" value="" optional="false" label="Reference proteome ids, separated by commas (ie. 'UP000000589,UP000005640')" help="More about reference proteomes here: https://www.uniprot.org/help/reference_proteome">
+            <validator type="regex" message="Numeric ids separated by comma">^(UP[0-9]{9},\s*)*UP[0-9]{9}$</validator>
+          </param>
+
+          <param name="genopts" type="select" display="checkboxes" multiple="true" label="Uniprot options">
             <option value="isoforms">Include protein isoforms</option>
           </param>
         </when>
@@ -126,6 +140,8 @@ Eventually, the 'Fasta toolbox' can be used for all Fasta files, even from a dif
 
 
 **Updates**
+
+* 02/08/2022: updated the algorithm to request fasta sequences from UniprotKB ; the new version of the UniprotKB API changes the way to search for reference proteomes.
 
 * 16/09/2021: allow up to 125 characters for the Fasta file name, also allows characters dot, dash, underscore and parentheses.
 
