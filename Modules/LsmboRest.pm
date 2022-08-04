@@ -12,7 +12,8 @@ use LWP::UserAgent;
 
 # only export these methods so they can be used without specifying the namespace
 use Exporter qw(import);
-our @EXPORT = qw(downloadFile UNIPROT_RELEASE REST_GET REST_GET_Uniprot REST_POST_Uniprot_tab REST_POST_Uniprot_fasta getQuickGOVersion);
+# our @EXPORT = qw(downloadFile UNIPROT_RELEASE REST_GET REST_GET_Uniprot REST_POST_Uniprot_tab REST_POST_Uniprot_fasta getQuickGOVersion);
+our @EXPORT = qw(downloadFile getQuickGOVersion REST_GET REST_GET_Uniprot);
 
 
 
@@ -60,138 +61,141 @@ sub REST_GET_generic {
   }
 }
 
-sub REST_POST_Uniprot_tab {
-  my ($inputFile, $from, $columns, $taxo) = @_;
-  print "Uniprot REST method for file '$inputFile', requesting tabular format for data of type '$from', requested columns are $columns\n";
+# sub REST_POST_Uniprot_tab {
+  # my ($inputFile, $from, $columns, $taxo) = @_;
+  # print "Uniprot REST method for file '$inputFile', requesting tabular format for data of type '$from', requested columns are $columns\n";
   
-  my $NBTRIESTOTAL = 10;
-  my $uniprotURL = "https://www.uniprot.org/uploadlists/";
-  my $contact = LsmboFunctions::getContactMailAddress();
-  my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
-  push @{$agent->requests_redirectable}, 'POST';
-  my $params = ['format' => 'tab', 'from' => $from, 'to' => 'ACC', 'columns' => $columns];
-  push(@$params, 'taxon' => $taxo) if(scalar(@_) == 4 && $taxo ne "");
-  my $nbColumns = scalar(split(",", $columns));
+  # my $NBTRIESTOTAL = 10;
+  # # my $uniprotURL = "https://www.uniprot.org/uploadlists/";
+  # my $uniprotURL = "https://legacy.uniprot.org/uploadlists/";
+  # my $contact = LsmboFunctions::getContactMailAddress();
+  # my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
+  # push @{$agent->requests_redirectable}, 'POST';
+  # my $params = ['format' => 'tab', 'from' => $from, 'to' => 'ACC', 'columns' => $columns];
+  # push(@$params, 'taxon' => $taxo) if(scalar(@_) == 4 && $taxo ne "");
+  # my $nbColumns = scalar(split(",", $columns));
   
-  my %output;
-  my @inputFiles = LsmboFunctions::checkUniprotInputFile($inputFile);
-  my $i = 1;
-  foreach my $file (@inputFiles) {
-    # update the parameters
-    my @batchParams = @$params;
-    push(@batchParams, 'file' => [$file]);
-    my $nbTries = 0;
-    my $isSuccess = 0;
-    while($isSuccess == 0) {
-      my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, \@batchParams);
-      if($code == 400 || $code == 500) {
-        # these error codes do not mean the request was necessarily wrong, let's retry another time
-        $nbTries++;
-        LsmboFunctions::stdwarn("HTTP GET error code:$code with message: $message (attempt $nbTries/$NBTRIESTOTAL)");
-        sleep 2; # wait a bit before trying again
-      } elsif($code > 0) {
-        # any other error code should end the script (is it really necessary ?)
-        LsmboFunctions::stdwarn("HTTP GET error code:$code with message: $message");
-      } else {
-        $output{UNIPROT_RELEASE()} = $version;
-        my @data = split(/\n/, $message);
-        # remove header line
-        my $headerLine = shift(@data);
-        # add the lines to the complete output
-        foreach my $line (@data) {
-          my @items = split(/\t/, $line);
-          # remove the isomap column if there is one
-          pop(@items) if(scalar(@items) == $nbColumns + 2);
-          # move the user entry from last to first
-          my $userEntry = pop(@items);
-          unshift(@items, $userEntry);
-          $output{$userEntry} = \@items;
-        }
-        # exit the while loop once the request succeeds
-        last;
-      }
-      stderr("Stopped trying to access Uniprot after $NBTRIESTOTAL attempts") if($nbTries == $NBTRIESTOTAL);
-    }
-  }
-  unlink(@inputFiles);
-  print "Uniprot returned ".scalar(keys(%output))." results\n";
-  return \%output;
-}
+  # my %output;
+  # my @inputFiles = LsmboFunctions::checkUniprotInputFile($inputFile);
+  # my $i = 1;
+  # foreach my $file (@inputFiles) {
+    # # update the parameters
+    # my @batchParams = @$params;
+    # push(@batchParams, 'file' => [$file]);
+    # my $nbTries = 0;
+    # my $isSuccess = 0;
+    # while($isSuccess == 0) {
+      # my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, \@batchParams);
+      # if($code == 400 || $code == 500) {
+        # # these error codes do not mean the request was necessarily wrong, let's retry another time
+        # $nbTries++;
+        # LsmboFunctions::stdwarn("HTTP GET error code:$code with message: $message (attempt $nbTries/$NBTRIESTOTAL)");
+        # sleep 2; # wait a bit before trying again
+      # } elsif($code > 0) {
+        # # any other error code should end the script
+        # # example of error: 405 Not Allowed (after an update on Uniprot API)
+        # LsmboFunctions::stderr("HTTP GET error code:$code with message: $message");
+      # } else {
+        # $output{UNIPROT_RELEASE()} = $version;
+        # my @data = split(/\n/, $message);
+        # # remove header line
+        # my $headerLine = shift(@data);
+        # # add the lines to the complete output
+        # foreach my $line (@data) {
+          # my @items = split(/\t/, $line);
+          # # remove the isomap column if there is one
+          # pop(@items) if(scalar(@items) == $nbColumns + 2);
+          # # move the user entry from last to first
+          # my $userEntry = pop(@items);
+          # unshift(@items, $userEntry);
+          # $output{$userEntry} = \@items;
+        # }
+        # # exit the while loop once the request succeeds
+        # last;
+      # }
+      # stderr("Stopped trying to access Uniprot after $NBTRIESTOTAL attempts") if($nbTries == $NBTRIESTOTAL);
+    # }
+  # }
+  # unlink(@inputFiles);
+  # print "Uniprot returned ".scalar(keys(%output))." results\n";
+  # return \%output;
+# }
 
-sub REST_POST_Uniprot_fasta {
-  my ($inputFile, $from, $fastaOutput) = @_;
-  print "Uniprot REST method for file '$inputFile', requesting fasta format for data of type '$from'\n";
+# sub REST_POST_Uniprot_fasta {
+  # my ($inputFile, $from, $fastaOutput) = @_;
+  # print "Uniprot REST method for file '$inputFile', requesting fasta format for data of type '$from'\n";
   
-  my $NBTRIESTOTAL = 5;
-  my $contact = LsmboFunctions::getContactMailAddress();
-  my $uniprotURL = "https://www.uniprot.org/uploadlists/";
-  my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
-  push @{$agent->requests_redirectable}, 'POST';
-  my $params = ['format' => 'fasta', 'from' => $from, 'to' => 'ACC'];
+  # my $NBTRIESTOTAL = 5;
+  # my $contact = LsmboFunctions::getContactMailAddress();
+  # # my $uniprotURL = "https://www.uniprot.org/uploadlists/";
+  # my $uniprotURL = "https://legacy.uniprot.org/uploadlists/";
+  # my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
+  # push @{$agent->requests_redirectable}, 'POST';
+  # my $params = ['format' => 'fasta', 'from' => $from, 'to' => 'ACC'];
   
-  my $uniprotVersion;
-  my @inputFiles = LsmboFunctions::checkUniprotInputFile($inputFile);
-  my $i = 1;
-  foreach my $file (@inputFiles) {
-    # update the parameters
-    my @batchParams = @$params;
-    push(@batchParams, 'file' => [$file]);
-    my $nbTries = 0;
-    my $isSuccess = 0;
-    while($isSuccess == 0) {
-      my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, \@batchParams);
-      if($code == 0) {
-        $uniprotVersion = $version;
-        open(my $fh, ">>", $fastaOutput) or LsmboFunctions::stderr("Can't write fasta output file to append data: $!");
-        print $fh $message;
-        close $fh;
-        # exit the while loop once the request succeeds
-        last;
-      } elsif($code == 400 || $code == 500) {
-        # these error codes do not mean the request was necessarily wrong, let's retry another time
-        LsmboFunctions::stdwarn("HTTP POST error code:$code with message: $message (attempt $nbTries/$NBTRIESTOTAL)");
-        $nbTries++;
-      } else {
-        # any other error code should end the script (is it really necessary ?)
-        LsmboFunctions::stdwarn("HTTP POST error code:$code with message: $message");
-      }
-      LsmboFunctions::stderr("Stopped trying to access Uniprot after $NBTRIESTOTAL attempts") if($nbTries == $NBTRIESTOTAL);
-    }
-  }
-  unlink(@inputFiles);
-  print "Uniprot request was successful\n";
-  return $uniprotVersion;
-}
+  # my $uniprotVersion;
+  # my @inputFiles = LsmboFunctions::checkUniprotInputFile($inputFile);
+  # my $i = 1;
+  # foreach my $file (@inputFiles) {
+    # # update the parameters
+    # my @batchParams = @$params;
+    # push(@batchParams, 'file' => [$file]);
+    # my $nbTries = 0;
+    # my $isSuccess = 0;
+    # while($isSuccess == 0) {
+      # my ($code, $message, $version) = REST_POST_Uniprot_single($agent, $uniprotURL, \@batchParams);
+      # if($code == 0) {
+        # $uniprotVersion = $version;
+        # open(my $fh, ">>", $fastaOutput) or LsmboFunctions::stderr("Can't write fasta output file to append data: $!");
+        # print $fh $message;
+        # close $fh;
+        # # exit the while loop once the request succeeds
+        # last;
+      # } elsif($code == 400 || $code == 500) {
+        # # these error codes do not mean the request was necessarily wrong, let's retry another time
+        # LsmboFunctions::stdwarn("HTTP POST error code:$code with message: $message (attempt $nbTries/$NBTRIESTOTAL)");
+        # $nbTries++;
+      # } else {
+        # # any other error code should end the script (is it really necessary ?)
+        # LsmboFunctions::stdwarn("HTTP POST error code:$code with message: $message");
+      # }
+      # LsmboFunctions::stderr("Stopped trying to access Uniprot after $NBTRIESTOTAL attempts") if($nbTries == $NBTRIESTOTAL);
+    # }
+  # }
+  # unlink(@inputFiles);
+  # print "Uniprot request was successful\n";
+  # return $uniprotVersion;
+# }
 
-sub REST_POST_Uniprot_single {
-  my ($agent, $uniprotURL, $params) = @_;
-  my $SLEEPTIME = 2;
-  # send to request to uniprot
-  my $response = $agent->post($uniprotURL, $params, 'Content_Type' => 'form-data');
-  while (my $wait = $response->header('Retry-After')) {
-    print STDERR "Waiting ($wait)...\n";
-    sleep $wait;
-    $response = $agent->get($response->base);
-  }
+# sub REST_POST_Uniprot_single {
+  # my ($agent, $uniprotURL, $params) = @_;
+  # my $SLEEPTIME = 2;
+  # # send to request to uniprot
+  # my $response = $agent->post($uniprotURL, $params, 'Content_Type' => 'form-data');
+  # while (my $wait = $response->header('Retry-After')) {
+    # print STDERR "Waiting ($wait)...\n";
+    # sleep $wait;
+    # $response = $agent->get($response->base);
+  # }
   
-  # prepare output
-  my $code = 0;
-  my $message = "";
-  my $version = "";
+  # # prepare output
+  # my $code = 0;
+  # my $message = "";
+  # my $version = "";
   
-  # return the output
-  if ($response->is_success) {
-    $version = $response->header('X-UniProt-Release');
-    $message = $response->decoded_content();
-  } else {
-    $code = $response->code;
-    $message = $response->message;
-  }
-  # wait a bit between two requests
-  sleep($SLEEPTIME);
-  # return exit code and message
-  return ($code, $message, $version);
-}
+  # # return the output
+  # if ($response->is_success) {
+    # $version = $response->header('X-UniProt-Release');
+    # $message = $response->decoded_content();
+  # } else {
+    # $code = $response->code;
+    # $message = $response->message;
+  # }
+  # # wait a bit between two requests
+  # sleep($SLEEPTIME);
+  # # return exit code and message
+  # return ($code, $message, $version);
+# }
 
 sub getRandomString {
   my @chars = ("A".."Z", "a".."z");

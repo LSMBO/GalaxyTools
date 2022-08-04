@@ -1,4 +1,4 @@
-<tool id="fasta36_wrapper" name="Fasta36 wrapper" version="1.3.2">
+<tool id="fasta36_wrapper" name="Fasta36 wrapper" version="1.4.0">
     <description>Protein sequence comparaison</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/fasta36_wrapper.pl '$inputs'
@@ -26,18 +26,18 @@
             <when value="list">
                 <param name="proteinList" label="Protein identifiers list" type="text" area="true" help="Separate entries with a new line, a space character, a comma or a dash. Avoid characters ';' and '|'." />
                 <param name="from" type="select" label="Identifier type">
-                    <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
-                    <option value="GENENAME">Gene names</option>
-                    <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                    <option value="UniProtKB_AC-ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                    <option value="Gene_Name">Gene names</option>
+                    <option value="GeneID">GeneID (Entrez Gene)</option>
                     <option value="NCBI">NCBI or RefSeq accession</option>
                 </param>
             </when>
             <when value="file">
                 <param format="txt" name="proteinFile" type="data" label="Protein identifiers file" multiple="false"/>
                 <param name="from" type="select" label="Identifier type">
-                    <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
-                    <option value="GENENAME">Gene names</option>
-                    <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                    <option value="UniProtKB_AC-ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                    <option value="Gene_Name">Gene names</option>
+                    <option value="GeneID">GeneID (Entrez Gene)</option>
                     <option value="NCBI">NCBI or RefSeq accession</option>
                 </param>
             </when>
@@ -48,9 +48,9 @@
                   <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
                 </param>
                 <param name="from" type="select" label="Identifier type">
-                    <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
-                    <option value="GENENAME">Gene names</option>
-                    <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                    <option value="UniProtKB_AC-ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                    <option value="Gene_Name">Gene names</option>
+                    <option value="GeneID">GeneID (Entrez Gene)</option>
                     <option value="NCBI">NCBI or RefSeq accession</option>
                 </param>
             </when>
@@ -89,7 +89,7 @@
             <conditional name="proteins">
                 <param name="source" value="list" />
                 <param name="proteinList" value="P12345" />
-                <param name="from" value="ACC_ID" />
+                <param name="from" value="UniProtKB_AC-ID" />
             </conditional>
             <param name="fastaLibrary" value="test/keratin.fasta" />
             <param name="nb" value="1" />

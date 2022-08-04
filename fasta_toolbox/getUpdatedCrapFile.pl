@@ -6,7 +6,9 @@ use File::Basename;
 use File::Copy;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(getDate getSetting stderr);
-use LsmboRest qw(REST_GET REST_POST_Uniprot_fasta);
+# use LsmboRest qw(REST_GET REST_POST_Uniprot_fasta);
+use LsmboRest qw(REST_GET);
+use LsmboUniprot qw(REST_POST_Uniprot_fasta_legacy);
 use Mail::Sendmail;
 
 my $crapFile = "cRAP.fasta";
@@ -41,7 +43,8 @@ eval {
 
   # download the updated sequences in fasta format
   _log("Downloading the sequences of the cRAP identifiers from Uniprot");
-  my $release = REST_POST_Uniprot_fasta($crapIds, "ACC+ID", "$crapFile.tmp");
+  # my $release = REST_POST_Uniprot_fasta($crapIds, "ACC+ID", "$crapFile.tmp");
+  my $release = REST_POST_Uniprot_fasta_legacy($crapIds, "UniProtKB_AC-ID", "$crapFile.tmp");
   unlink($crapIds);
 
   # adding CON tags to the identifiers

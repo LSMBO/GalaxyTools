@@ -6,7 +6,8 @@ use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(getDate parameters booleanToString stderr archive);
 use LsmboMPI;
-use LsmboRest qw(REST_GET_Uniprot);
+# use LsmboRest qw(REST_GET_Uniprot);
+use LsmboUniprot qw(getFastaFromUniprot);
 
 use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
 use Archive::Zip::MemberRead;
@@ -46,7 +47,8 @@ if($PARAMS{"toolbox"}{"action"} eq "generate" || $PARAMS{"toolbox"}{"action"} eq
   my $taxonomyIds = $PARAMS{"toolbox"}{"taxo"};
   $taxonomyIds =~ s/ //g;
   # ($uniprotFasta, $uniprotVersion) = getFastaFromUniprot(split(",", $taxonomyIds));
-  ($uniprotFasta, $uniprotVersion) = getFastaFromUniprotNew(split(",", $taxonomyIds));
+  # ($uniprotFasta, $uniprotVersion) = getFastaFromUniprotNew(split(",", $taxonomyIds));
+  ($uniprotFasta, $uniprotVersion) = getFastaFromUniprot($PARAMS{"toolbox"}{"source"}, $PARAMS{"toolbox"}{"genopts"}, $PARAMS{"toolbox"}{"action"}, split(",", $taxonomyIds));
   push(@fastaFiles, $uniprotFasta);
 } elsif($PARAMS{"toolbox"}{"action"} eq "merge") {
   # add the other files to merge (Galaxy renames the files so they loose their .fasta extension)
@@ -187,36 +189,36 @@ exit;
     # return ($tempFastaFile, $version);
 # }
 
-sub getFastaFromUniprotNew {
-  my (@ids) = @_;
+# sub getFastaFromUniprotNew {
+  # my (@ids) = @_;
   
-  # The following request returns a fasta file with all the proteins from taxonomy 9606 and 7215 (including sub taxonomies) in swissprot and with the isoforms https://rest.uniprot.org/uniprotkb/search?format=fasta&includeIsoform=true&query=(taxonomy_id:9606+OR+taxonomy_id:7215)+AND+(reviewed:true)
-  # reviewed:yes means SwissProt only ; reviewed:no means TrEMBL only ; do not use Reviewed to have both !
-  # include=yes means that we want to include the isoforms of the proteins, which increases the size of the fasta file
-  # the filter for proteins belonging to any of the reference proteomes is no longer available
+  # # The following request returns a fasta file with all the proteins from taxonomy 9606 and 7215 (including sub taxonomies) in swissprot and with the isoforms https://rest.uniprot.org/uniprotkb/search?format=fasta&includeIsoform=true&query=(taxonomy_id:9606+OR+taxonomy_id:7215)+AND+(reviewed:true)
+  # # reviewed:yes means SwissProt only ; reviewed:no means TrEMBL only ; do not use Reviewed to have both !
+  # # include=yes means that we want to include the isoforms of the proteins, which increases the size of the fasta file
+  # # the filter for proteins belonging to any of the reference proteomes is no longer available
   
-  print "Searching proteins matching the requested taxonomies\n";
-  my $isoforms = $PARAMS{"toolbox"}{"genopts"} =~ m/isoforms/ ? "&includeIsoform=true" : "";
-  my $idTag = $PARAMS{"toolbox"}{"action"} eq "proteome" ? "proteome" : "taxonomy_id";
-  my $ids = join(" OR ", map { "$idTag:$_" } @ids);
-  my $reviewed = "";
-  $reviewed = "reviewed:true" if(lc($PARAMS{"toolbox"}{"source"}) eq "sp");
-  $reviewed = "reviewed:false" if(lc($PARAMS{"toolbox"}{"source"}) eq "tr");
-  my $options = $reviewed ne "" ? " AND ($reviewed)" : "";
-  my $url = "https://rest.uniprot.org/uniprotkb/stream?format=fasta$isoforms&query=($ids)$options";
+  # print "Searching proteins matching the requested taxonomies\n";
+  # my $isoforms = $PARAMS{"toolbox"}{"genopts"} =~ m/isoforms/ ? "&includeIsoform=true" : "";
+  # my $idTag = $PARAMS{"toolbox"}{"action"} eq "proteome" ? "proteome" : "taxonomy_id";
+  # my $ids = join(" OR ", map { "$idTag:$_" } @ids);
+  # my $reviewed = "";
+  # $reviewed = "reviewed:true" if(lc($PARAMS{"toolbox"}{"source"}) eq "sp");
+  # $reviewed = "reviewed:false" if(lc($PARAMS{"toolbox"}{"source"}) eq "tr");
+  # my $options = $reviewed ne "" ? " AND ($reviewed)" : "";
+  # my $url = "https://rest.uniprot.org/uniprotkb/stream?format=fasta$isoforms&query=($ids)$options";
 
-  my ($message, $version) = REST_GET_Uniprot($url);
-  my $tempFastaFile = "uniprot-request.fasta";
-  open(my $fh, ">", $tempFastaFile) or stderr("Failed to create output file: $!");
-  print $fh  $message;
-  close $fh;
-  return ($tempFastaFile, $version);
-}
+  # my ($message, $version) = REST_GET_Uniprot($url);
+  # my $tempFastaFile = "uniprot-request.fasta";
+  # open(my $fh, ">", $tempFastaFile) or stderr("Failed to create output file: $!");
+  # print $fh  $message;
+  # close $fh;
+  # return ($tempFastaFile, $version);
+# }
 
-sub addOption {
-  my ($options, $newOption) = @_;
-  return ($options ne "" ? "+AND+".$newOption : $newOption);
-}
+# sub addOption {
+  # my ($options, $newOption) = @_;
+  # return ($options ne "" ? "+AND+".$newOption : $newOption);
+# }
 
 sub copyProtein {
   my ($accession, $sequence) = @_;

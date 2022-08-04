@@ -7,7 +7,9 @@ use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(booleanToString checkUniprotFrom decompressGunzip extractListEntries getLinesPerIds parameters stderr);
 use LsmboExcel qw(extractIds setColumnsWidth writeExcelLine writeExcelLineF);
 use LsmboNcbi qw(entrezFetch getNcbiRelease);
-use LsmboRest qw(downloadFile REST_POST_Uniprot_tab UNIPROT_RELEASE);
+# use LsmboRest qw(downloadFile REST_POST_Uniprot_tab UNIPROT_RELEASE);
+use LsmboRest qw(downloadFile);
+use LsmboUniprot qw(REST_POST_Uniprot_tab_legacy UNIPROT_RELEASE);
 
 use File::Copy;
 use List::MoreUtils qw(uniq);
@@ -93,11 +95,15 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     $columns .= ",database(GeneID),created,last-modified,sequence-modified";
     $columns .= ",database(OrthoDB)" if($addOrthoDb eq "true");
     $columns .= ",database(InterPro)" if($addInterPro eq "true");
+    my @fields = ("accession", "id", "reviewed", "protein_name", "organism_id", "gene_primary", "gene_synonym", "ec", "xref_geneid", "date_created", "date_modified", "date_sequence_modified", "xref_orthodb", "xref_interpro");
+    push(@fields, "xref_orthodb") if($addOrthoDb eq "true");
+    push(@fields, "xref_interpro") if($addInterPro eq "true");
 
     # add the organism id if provided
     my $taxo = "";
     $taxo = $PARAMS{"identifierTypes"}{"organism"} if(exists($PARAMS{"identifierTypes"}{"organism"}));
-    %output = %{REST_POST_Uniprot_tab($inputFile, checkUniprotFrom($PARAMS{"identifierTypes"}{"from"}), $columns, $taxo)};
+    # %output = %{REST_POST_Uniprot_tab($inputFile, checkUniprotFrom($PARAMS{"identifierTypes"}{"from"}), $columns, $taxo)};
+    %output = %{REST_POST_Uniprot_tab_legacy($inputFile, $PARAMS{"identifierTypes"}{"from"}, \@fields, $taxo)};
 } else {
     # put the ids in an array
     my @ids = keys(%linesPerId);

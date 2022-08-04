@@ -1,4 +1,4 @@
-<tool id="proteingene_data" name="Protein/gene data" version="1.2.1">
+<tool id="proteingene_data" name="Protein/gene data" version="1.3.0">
     <description>Extraction of protein information</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/proteingene_data.pl '$inputs' '$output'
@@ -29,21 +29,21 @@
         </conditional>
         <conditional name="identifierTypes">
           <param name="from" type="select" display="radio" label="Select type of identifier">
-                <option value="ACC_ID" selected="true">Uniprot Accession Number or Protein Name</option>
-                <option value="GENENAME">Gene names</option>
-                <option value="P_ENTREZGENEID">GeneID (Entrez Gene)</option>
+                <option value="UniProtKB_AC-ID" selected="true">Uniprot Accession Number or Protein Name</option>
+                <option value="Gene_Name">Gene names</option>
+                <option value="GeneID">GeneID (Entrez Gene)</option>
                 <option value="NCBI">NCBI or RefSeq accession</option>
             </param>
-            <when value="ACC_ID">
+            <when value="UniProtKB_AC-ID">
                 <param type="boolean" checked="false" name="addOrthoDb" label="Add OrthoDB links into the output" help="" />
                 <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />
             </when>
-            <when value="GENENAME">
+            <when value="Gene_Name">
                 <param name="organism" label="Organism taxonomy identifier" type="integer" area="true" value="" />
                 <param type="boolean" checked="false" name="addOrthoDb" label="Add OrthoDB links into the output" help="" />
                 <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />
             </when>
-            <when value="P_ENTREZGENEID">
+            <when value="GeneID">
                 <param type="boolean" checked="false" name="addOrthoDb" label="Add OrthoDB links into the output" help="" />
                 <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />
             </when>

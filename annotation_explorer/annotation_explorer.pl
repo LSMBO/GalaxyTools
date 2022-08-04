@@ -8,7 +8,9 @@ use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(extractListEntries getLinesPerIds parameters randomSubset stderr);
 use LsmboExcel qw(extractIds getValue setColumnsWidth writeExcelLine writeExcelLineF);
-use LsmboRest qw(getQuickGOVersion REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
+# use LsmboRest qw(getQuickGOVersion REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
+use LsmboRest qw(getQuickGOVersion REST_GET);
+use LsmboUniprot qw(REST_POST_Uniprot_tab_legacy UNIPROT_RELEASE);
 
 use File::Copy;
 use JSON::XS qw(encode_json decode_json);
@@ -143,12 +145,14 @@ sub looksLikeGOTerm {
 sub retrieveFromUniprot {
     my ($file, $from) = @_;
 
-    print "Sending protein list $file to Uniprot, identifiers are $from\n";
-    my $columns = "id,entry name,protein names,genes(PREFERRED),genes(ALTERNATIVE),organism,go(biological process),go(cellular component),go(molecular function),go-id";
+    # print "Sending protein list $file to Uniprot, identifiers are $from\n";
+    print "Sending protein list $file to Uniprot, identifiers are UniProtKB_AC-ID\n";
+    my $columns = "id,entry name,protein names,genes(PREFERRED),genes(ALTERNATIVE),organism,go(biological process),go(cellular component),go(molecular function),go-id"; # TODO legacy fields, to be removed
+    my @fields = ("accession", "id", "protein_name", "gene_primary", "gene_synonym", "organism_name", "go_p", "go_c", "go_f", "go_id"); # new fields
 
     my %fullGoList;
     # my %lines = %{REST_POST_Uniprot($file, "tab", $from, "ACC", $columns)};
-    my %lines = %{REST_POST_Uniprot_tab($file, $from, $columns)};
+    my %lines = %{REST_POST_Uniprot_tab_legacy($file, "UniProtKB_AC-ID", \@fields, undef)};
     # print Dumper(\%lines);
     # extract uniprot version
     my $version = delete($lines{UNIPROT_RELEASE()});

@@ -1,4 +1,4 @@
-<tool id="annotation_explorer" name="Annotation Explorer" version="1.1.3">
+<tool id="annotation_explorer" name="Annotation Explorer" version="1.2.0">
     <description>Retrieve GO terms and ancestors list</description>
 1 1 <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/annotation_explorer.pl '$inputs' '$output'
@@ -42,7 +42,7 @@
             </when>
         </conditional>
         
-        <param name="from" type="hidden" value="ACC+ID" />
+        <param name="from" type="hidden" value="UniProtKB_AC-ID" />
         <!-- <param name="from" type="select" label="Identifier type" help="This list is a subset of the Uniprot Retrieve/ID mapping 'From' list">
             <option value="ACC+ID" selected="true">UniProtKB AC/ID</option>
             <option value="EMBL_ID">EMBL/GenBank/DDBJ</option>

@@ -5,7 +5,9 @@ use warnings;
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(parameters stderr);
-use LsmboRest qw(getQuickGOVersion REST_GET REST_GET_Uniprot);
+# use LsmboRest qw(getQuickGOVersion REST_GET REST_GET_Uniprot);
+use LsmboRest qw(getQuickGOVersion REST_GET_Uniprot);
+use LsmboUniprot qw(searchEntries);
 
 use File::Path qw(make_path remove_tree);
 
@@ -195,18 +197,22 @@ sub getUniprotTaxonomyNames {
 
 sub getUniprotData {
     my ($taxonomyId, $source) = @_;
+    
+    my @ids = ($taxonomyId);
+    my @fields = ("accession", "id", "gene_primary", "xref_geneid", "xref_kegg", "go_p", "go_c", "go_f", "go_id");
+    my $message = searchEntries("tsv", \@fields, \@ids);
 
-    print "Download protein data from Uniprot SwissProt".($source eq "un" ? " and TrEMBL" : "")." for taxonomy $taxonomyId\n";
-    # prepare the REST url
-    my $url = "https://www.uniprot.org/uniprot/?query=";
-    $url .= "reviewed:yes%20" if($source ne "un");
-    $url .= "taxonomy:$taxonomyId&format=tab&";
-    # $url .= "limit=10&"; # uncomment this line to test things
-    $url .= "columns=id,entry%20name,genes(PREFERRED),database(GeneID),database(KEGG),go(biological%20process),go(cellular%20component),go(molecular%20function),go-id";
-    # sample: https://www.uniprot.org/uniprot/?query=reviewed:yes%20taxonomy:9606&format=tab&limit=10&columns=id,entry%20name,protein%20names,genes,organism,go(biological%20process),go(cellular%20component),go(molecular%20function),go-id,genes(PREFERRED)
+    # print "Download protein data from Uniprot SwissProt".($source eq "un" ? " and TrEMBL" : "")." for taxonomy $taxonomyId\n";
+    # # prepare the REST url
+    # my $url = "https://www.uniprot.org/uniprot/?query=";
+    # $url .= "reviewed:yes%20" if($source ne "un");
+    # $url .= "taxonomy:$taxonomyId&format=tab&";
+    # # $url .= "limit=10&"; # uncomment this line to test things
+    # $url .= "columns=id,entry%20name,genes(PREFERRED),database(GeneID),database(KEGG),go(biological%20process),go(cellular%20component),go(molecular%20function),go-id";
+    # # sample: https://www.uniprot.org/uniprot/?query=reviewed:yes%20taxonomy:9606&format=tab&limit=10&columns=id,entry%20name,protein%20names,genes,organism,go(biological%20process),go(cellular%20component),go(molecular%20function),go-id,genes(PREFERRED)
 
     # send the GET request
-    my $message = REST_GET($url);
+    # my $message = REST_GET($url);
     my $i = 1;
     foreach my $line (split(/\n/, $message)) {
         next if($line =~ m/^Entry/); # skip the header line

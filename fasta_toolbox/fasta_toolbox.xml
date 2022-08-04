@@ -1,4 +1,4 @@
-<tool id="fasta_toolbox" name="Fasta toolbox" version="1.4.0">
+<tool id="fasta_toolbox" name="Fasta toolbox" version="1.4.1">
     <description>Generation of Fasta files</description>
     <macros>
         <import>macroCrap.xml</import>

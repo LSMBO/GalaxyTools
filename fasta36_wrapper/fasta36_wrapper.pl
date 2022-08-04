@@ -6,7 +6,8 @@ use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(archive booleanToString checkUniprotFrom decompressZip extractListEntries getFileNameFromArchive getLinesPerIds parameters stderr);
 use LsmboExcel qw(extractIds writeExcelLine writeExcelLineF);
-use LsmboRest qw(REST_POST_Uniprot_fasta);
+# use LsmboRest qw(REST_POST_Uniprot_fasta);
+use LsmboUniprot qw(REST_POST_Uniprot_fasta_legacy);
 use LsmboMPI;
 use LsmboNcbi qw(entrezFetch getNcbiRelease);
 
@@ -95,7 +96,8 @@ sub convertFasta {
         }
         if($PARAMS{"proteins"}{"from"} ne "NCBI") {
             # call uniprot -> fasta
-            my $version = REST_POST_Uniprot_fasta($inputFile, checkUniprotFrom($PARAMS{"proteins"}{"from"}), $fastaInput);
+            # my $version = REST_POST_Uniprot_fasta($inputFile, checkUniprotFrom($PARAMS{"proteins"}{"from"}), $fastaInput);
+            my $version = REST_POST_Uniprot_fasta_legacy($inputFile, $PARAMS{"proteins"}{"from"}, $fastaInput);
             $databaseVersion = "Uniprot release: $version";
         } else {
             # extract the NCBI ids

@@ -8,7 +8,9 @@ use Image::Size;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(archive booleanToString getDate getVersion parameters stderr);
 use LsmboExcel qw(addWorksheet getValue setColumnsWidth writeExcelLine writeExcelLineF);
-use LsmboRest qw(downloadFile REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
+# use LsmboRest qw(downloadFile REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
+use LsmboRest qw(downloadFile REST_GET);
+use LsmboUniprot qw(REST_POST_Uniprot_tab_legacy UNIPROT_RELEASE);
 use lib dirname(__FILE__);
 use HtmlGenerator qw(createHtmlFile);
 
@@ -117,7 +119,9 @@ sub getUniprotEntries {
   foreach (keys(%DATA)) { print $tmp "$_\n"; }
   close $tmp;
   # ask uniprot for the corresponding Entry (id)
-  my %output = %{REST_POST_Uniprot_tab($tempFile, "ACC+ID", "id")};
+  # my %output = %{REST_POST_Uniprot_tab($tempFile, "ACC+ID", "id")};
+  my @fields = ("accession");
+  my %output = %{REST_POST_Uniprot_tab_legacy($tempFile, "UniProtKB_AC-ID", \@fields, undef)};
   # extract uniprot version
   my $version = delete($output{UNIPROT_RELEASE()});
   # replace the keys in %DATA
