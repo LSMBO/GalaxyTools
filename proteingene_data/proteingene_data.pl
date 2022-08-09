@@ -19,6 +19,7 @@ my ($paramFile, $outputFile) = @ARGV;
 # global variables
 my %PARAMS = %{parameters($paramFile)};
 my %MONTH = ( JAN => 1, FEB => 2, MAR => 3, APR => 4, MAY => 5, JUN => 6, JUL => 7, AUG => 8, SEP => 9, OCT => 10, NOV => 11, DEC => 12 );
+$PARAMS{"identifierTypes"}{"from"} = "UniProtKB_AC-ID" if($PARAMS{"identifierTypes"}{"from"} eq "ACC_ID"); # to be sure that the new tag is correct
 my $addOrthoDb = "false";
 $addOrthoDb = booleanToString($PARAMS{"identifierTypes"}{"addOrthoDb"}) if($PARAMS{"identifierTypes"}{"from"} ne "NCBI");
 my $addInterPro = "false";
