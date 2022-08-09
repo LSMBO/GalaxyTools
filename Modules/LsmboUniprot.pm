@@ -15,8 +15,8 @@ use JSON::XS qw(encode_json decode_json);
 use Exporter qw(import);
 our @EXPORT = qw(getUniprotRelease getFastaFromTaxonomyIds getFastaFromProteinIdsWithoutIdMapping getFastaFromProteinIdsWithIdMapping getTabularFromProteinIdsWithIdMapping getTabularFromProteinIdsWithoutIdMapping searchEntries UNIPROT_RELEASE getFastaFromUniprot REST_POST_Uniprot_tab_legacy REST_POST_Uniprot_fasta_legacy);
 
-my $DEFAULT_NB_IDS = 500;
-my $DEFAULT_SLEEP = 2;
+my $DEFAULT_NB_IDS = 250;
+my $DEFAULT_SLEEP = 1;
 my $DEFAULT_MAX_WAIT_TIME = 60;
 my $DEFAULT_TO = "UniProtKB";
 my $LAST_UNIPROT_RELEASE = "";
@@ -347,7 +347,7 @@ sub sendGetRequest {
       sleep 5;
     }
   }
-  LsmboFunctions::stderr("The request has failed too many times and will not be tried anymore.");
+  LsmboFunctions::stderr("The request has failed too many times and will not be tried anymore. The URL was: $url");
 }
 
 1;

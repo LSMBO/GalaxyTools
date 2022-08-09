@@ -96,7 +96,7 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     $columns .= ",database(GeneID),created,last-modified,sequence-modified";
     $columns .= ",database(OrthoDB)" if($addOrthoDb eq "true");
     $columns .= ",database(InterPro)" if($addInterPro eq "true");
-    my @fields = ("accession", "id", "reviewed", "protein_name", "organism_id", "gene_primary", "gene_synonym", "ec", "xref_geneid", "date_created", "date_modified", "date_sequence_modified", "xref_orthodb", "xref_interpro");
+    my @fields = ("accession", "id", "reviewed", "protein_name", "organism_id", "gene_primary", "gene_synonym", "ec", "xref_geneid", "date_created", "date_modified", "date_sequence_modified");
     push(@fields, "xref_orthodb") if($addOrthoDb eq "true");
     push(@fields, "xref_interpro") if($addInterPro eq "true");
 
