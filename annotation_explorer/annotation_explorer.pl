@@ -4,6 +4,7 @@ use warnings;
 
 use URI::Escape;
 
+use Data::Dumper;
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(extractListEntries getLinesPerIds parameters randomSubset stderr);
@@ -350,7 +351,8 @@ sub addProteinSheet {
                    $go_bp, getAncestorsToString(@biologicalProcess), convertToGraph(@biologicalProcess));
         # writeLineL($worksheet, $rowNumber++, @row);
         # replace the user entry by the real one
-        foreach my $rowNumber (@{$linesPerId{$key}}) {
+        # foreach my $rowNumber (@{$linesPerId{$key}}) {
+        foreach my $rowNumber (@{$linesPerId{$user_entry}}) {
             $row[0] = $fullDataPerLine{$rowNumber};
             writeLineL($worksheet, $rowNumber+1, @row);
         }

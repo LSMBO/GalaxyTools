@@ -14,7 +14,7 @@ use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use IO::Uncompress::Unzip qw(unzip $UnzipError);
 use JSON::XS qw(encode_json decode_json);
 use List::MoreUtils qw(uniq);
-use List::Util qw(shuffle);
+use List::Util qw(shuffle min max);
 # use Number::Bytes::Human qw(format_bytes);
 use POSIX qw(strftime);
 
@@ -63,8 +63,11 @@ sub parameters {
 # This methods makes sure to have true/false only
 sub booleanToString {
   my $value = "false";
-  eval { $value = "true" if($_[0] eq "true");
-  } or $value = "true" if($_[0] eq 1);
+  # eval { $value = "true" if($_[0] eq "true");
+  # } or $value = "true" if($_[0] eq 1);
+  eval {
+    $value = "true" if($_[0] eq "true" || $_[0] eq 1);
+  };
   return $value;
 }
 

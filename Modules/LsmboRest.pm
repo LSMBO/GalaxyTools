@@ -41,7 +41,7 @@ sub REST_GET_Uniprot {
 
 sub REST_GET_generic {
   my ($url, @requestedHeaders) = @_;
-  print "REST GET url: $url\n";
+  # print "REST GET url: $url\n";
   my $contact = LsmboFunctions::getContactMailAddress();
   my $ua = LWP::UserAgent->new(agent => "libwww-perl $contact");
   my $request = HTTP::Request->new(GET => $url);
@@ -57,7 +57,7 @@ sub REST_GET_generic {
     }
     return ($response->decoded_content, @headers);
   } else {
-    LsmboFunctions::stderr("HTTP GET error code:".$response->code." with message: ".$response->message);
+    LsmboFunctions::stderr("HTTP GET error code:".$response->code." with message: ".$response->message."\nDownloaded URL was: $url\n");
   }
 }
 

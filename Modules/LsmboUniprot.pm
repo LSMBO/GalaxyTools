@@ -13,11 +13,13 @@ use JSON::XS qw(encode_json decode_json);
 
 # only export these methods so they can be used without specifying the namespace
 use Exporter qw(import);
-our @EXPORT = qw(getUniprotRelease getFastaFromTaxonomyIds getFastaFromProteinIdsWithoutIdMapping getFastaFromProteinIdsWithIdMapping getTabularFromProteinIdsWithIdMapping getTabularFromProteinIdsWithoutIdMapping searchEntries UNIPROT_RELEASE getFastaFromUniprot REST_POST_Uniprot_tab_legacy REST_POST_Uniprot_fasta_legacy);
+our @EXPORT = qw(getUniprotRelease getFastaFromTaxonomyIds getFastaFromProteinIdsWithoutIdMapping getFastaFromProteinIdsWithIdMapping getTabularFromProteinIdsWithIdMapping getTabularFromProteinIdsWithoutIdMapping searchEntries UNIPROT_RELEASE getFastaFromUniprot REST_POST_Uniprot_tab_legacy REST_POST_Uniprot_fasta_legacy idmapping);
 
 my $DEFAULT_NB_IDS = 250;
-my $DEFAULT_SLEEP = 1;
-my $DEFAULT_MAX_WAIT_TIME = 60;
+# my $DEFAULT_NB_IDS = 200;
+my $DEFAULT_SLEEP = 2;
+my $DEFAULT_MAX_WAIT_TIME = 120;
+# my $DEFAULT_MAX_WAIT_TIME = 240;
 my $DEFAULT_TO = "UniProtKB";
 my $LAST_UNIPROT_RELEASE = "";
 
@@ -243,10 +245,11 @@ sub setIdTag {
 # $to: the database requested
 # $taxonId: the taxonomy id if required (ie. for gene name) ; use undef if no taxonomy id is needed
 # @ids: an array of ids
+# TODO use pagination instead
 sub idmapping {
   my ($from, $to, $taxonId, @ids) = @_;
   my %mappedIds;
-  # split the ids in groups of 500
+  # split the ids in groups of 250
   for(my $i = 0; $i < scalar(@ids); $i += $DEFAULT_NB_IDS) {
     my $stop = min($i + $DEFAULT_NB_IDS - 1, scalar(@ids) - 1);
     # prepare the parameters
@@ -256,6 +259,7 @@ sub idmapping {
     my $jobId = submitJobAndWait("https://rest.uniprot.org/idmapping/run", $params);
     # download the results
     my $json = getJobResults($jobId);
+    # my $json = getJobResults($jobId, "uniref");
     # add the output to the main hash
     foreach my $output (@{$json->{"results"}}) {
       $mappedIds{$output->{"from"}} = $output->{"to"};
@@ -297,6 +301,7 @@ sub waitForJobEnding {
   $maxWaitTime = $DEFAULT_MAX_WAIT_TIME if(!$maxWaitTime);
   my $timer = 0;
   # start to request the job status
+  sleep $DEFAULT_SLEEP;
   my $jobStatus = getJobStatus($jobId);
   while($jobStatus eq 0 && $timer <= $maxWaitTime) {
     sleep $DEFAULT_SLEEP;
@@ -342,9 +347,10 @@ sub sendGetRequest {
     if ($response->is_success) {
       return $response;
     } else {
-      LsmboFunctions::stdwarn("The request failed with error ".$response->code." (".$response->message.") and will be run again in a few seconds");
-      $timer += 5;
-      sleep 5;
+      LsmboFunctions::stdwarn("The request failed with error ".$response->code." (".$response->message.") and will be run again in a few seconds") if($timer != 0);
+      # die Dumper($response)."\n" if($response->code eq 429);
+      $timer += 10;
+      sleep 10;
     }
   }
   LsmboFunctions::stderr("The request has failed too many times and will not be tried anymore. The URL was: $url");

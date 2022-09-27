@@ -12,7 +12,7 @@ use Excel::Template::XLSX; # wraps Excel::Writer::XLSX and allows to create a ne
 
 # only export these methods so they can be used without specifying the namespace
 use Exporter qw(import);
-our @EXPORT = qw(addWorksheet getColumnId getValue extractIds writeExcelLine writeExcelLineF setColumnsWidth);
+our @EXPORT = qw(addWorksheet getColumnId getColumnLetter getValue extractIds writeExcelLine writeExcelLineF setColumnsWidth);
 
 
 # Reads a cell from an Excel file
@@ -85,12 +85,17 @@ sub setColumnsWidth {
 
 # transforms a letter representing an Excel column into its number equivalent
 sub getColumnId {
-  my @ids = ();
-  foreach my $column (@_) {
-    # A = 65
-    push(@ids, ord(uc($column)) - 65); # TODO check if first column is zero or one
-  }
-  return @ids;
+  # my @ids = ();
+  # foreach my $column (@_) {
+    # # A = 65
+    # push(@ids, ord(uc($column)) - 65); # TODO check if first column is zero or one
+  # }
+  # return @ids;
+  # A => 0
+  return map { ord(uc($_)) - 65 } @_;
+}
+sub getColumnLetter {
+    return map { uc(chr($_ + 65)) } @_;
 }
 
 # adds a worksheet with a unique and valid name

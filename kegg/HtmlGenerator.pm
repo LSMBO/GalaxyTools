@@ -18,6 +18,7 @@ use constant KEGG_URL => "https://www.kegg.jp";
 use constant SEP => "-";
 
 my $VERBOSE = 0;
+my $TRANSLATE = 6;
 
 # sub getProteins {
 sub getIds {
@@ -47,41 +48,50 @@ sub getAssociatedIds {
 }
 
 sub getFullStatus {
-  my ($data, @ids) = @_;
+  my ($data, $excludedStatus, @ids) = @_;
   # $data{userId}{site} -> status_key
   return "Default" if(scalar(@ids) == 0);
   my %keys;
   foreach my $id (@ids) {
     foreach my $site (keys(%{$data->{$id}})) {
-      $keys{$data->{$id}{$site}}++;
+      # $keys{$data->{$id}{$site}}++;
+      foreach my $condition (sort(keys(%{$data->{$id}{$site}}))) {
+        # $keys{$data->{$id}{$site}{$condition}}++;
+        my $status = $data->{$id}{$site}{$condition};
+        $keys{$status}++ if($status ne $excludedStatus);
+        # $keys{$status}++;
+      }
     }
   }
   return join(SEP, sort(keys(%keys)));
 }
 
 sub makeTooltipText {
-  my ($data, $status, $indicateSite, @ids) = @_;
-  # $data{userId}{site} -> status_key
-  # $status{status_key} -> {id: int, text: string, color: #ffffff}
+  my ($data, $indicateSite, $conditions, $indicateConditions, $indicateStatus, $excludedStatus, @ids) = @_;
+  # $data{userId}{site}{condition} -> status_key
   # if $indicateSite eq 0, then there will be only one site per id
   my %text;
   my $nbRows = 0;
-  my $maxNbChar = 0;
   foreach my $id (@ids) {
     foreach my $site (sort(keys(%{$data->{$id}}))) {
-      my $key = $data->{$id}{$site};
-      $text{$nbRows}{"text"} = $indicateSite eq 1 ? "Identifier $id at site $site" : "Identifier $id";
-      $maxNbChar = length($text{$nbRows}{"text"}) if(length($text{$nbRows}{"text"}) > $maxNbChar);
-      $text{$nbRows++}{"status"} = $key;
+      foreach my $cnd (sort(keys(%{$data->{$id}{$site}}))) {
+        my $key = $data->{$id}{$site}{$cnd};
+        next if($key eq $excludedStatus);
+        $key = "NA" if($indicateStatus eq 0);
+        $text{$nbRows}{"text"} = $indicateSite eq 1 ? "$id at site $site" : "$id";
+        $text{$nbRows}{"text"} .= $indicateConditions eq 1 ? " [".$conditions->{$cnd}."]" : "";
+        $text{$nbRows++}{"status"} = $key;
+      }
     }
   }
   return \%text;
 }
 
 sub makeTooltipBox {
-  my ($id, $lines, $ind) = @_;
+  my ($id, $name, $lines, $ind) = @_;
   return "" if(scalar(%$lines) == 0);
   my $tt = $ind."<div id=\"${id}tt\" class=\"TT\">\n";
+  $tt .= "$ind\t<p class=\"title\">$name</p>\n";
   foreach my $id (sort(keys(%$lines))) {
     $tt .= "$ind\t<p class=\"".$lines->{$id}{"status"}."\">".$lines->{$id}{"text"}."</p>\n";
   }
@@ -129,21 +139,30 @@ sub makeCss {
   $css .= $ind."a { z-index: 50; }\n";
   $css .= $ind."a.h.rect, a.h.circ { border-color:#f2549e; }\n";
   $css .= $ind."a.h.arrow, a.h.line { background-color:#f2549e; }\n";
-  $css .= $ind."a.rect, a.arrow, a.circ, a.line { border: 3px solid transparent; position: absolute; transform: translate(6px, 6px); z-index: 10; }\n";
+  $css .= $ind."a.rect, a.arrow, a.circ, a.line { border: 3px solid transparent; position: absolute; z-index: 10; }\n";
   $css .= $ind."a.rect.rounded { border-radius: 10px; }\n";
   $css .= $ind."a.circ { border-radius: 50%; mask-image: radial-gradient(circle, transparent 40%, rgba(0, 0, 0, 1) 0); }\n";
-  $css .= $ind."div.TT { visibility:hidden; width:max-content; background-color:#f9f9f9; border:1px solid gray; color:black; padding:5px 10px; position:absolute; left: 0; top: 0; z-index: 20; }\n";
-  $css .= $ind."div#legend { visibility:hidden; width:max-content; background-color:#555; color:white; padding:5px 10px; position:absolute; left: 8px; top: 8px; z-index: 20; }\n";
+  $css .= $ind."div.TT { visibility:hidden; width:max-content; max-width:500px; background-color:#f9f9f9; border:1px solid gray; color:black; position:absolute; left: 0; top: 0; z-index: 20; }\n";
+  $css .= $ind."div#help { position:absolute; top:8px; left:8px; border:1px solid black; padding:1px 5px }\n";
+  $css .= $ind."div#legend { visibility:hidden; width:max-content; background-color:#555; color:white; padding:5px 10px; position:fixed; left: 8px; top: 8px; z-index: 20; }\n";
   $css .= $ind."div#legend p { line-height: 10px; }\n";
   $css .= $ind."div#legend font { font-weight: bold; }\n";
+  $css .= $ind."table#info { visibility:hidden; width:75%; background-color:#555; color:white; padding:5px 10px; position:fixed; left: 8px; top: 8px; z-index: 20; }\n";
+  $css .= $ind."table#info td { min-width: 150px; vertical-align : top; }\n";
+  $css .= $ind."table#info td a { color: #ffd561; }\n";
+  $css .= $ind."table#info td a:hover { color: #fcba03; }\n";
+  $css .= $ind."table#info td a:visited { color: #fcba03; }\n";
+  $css .= $ind."table#info td a:visited:hover { color: #9e843e; }\n";
   my @ps = map {"p.$_"} keys(%$status);
-  $css .= $ind.join(", ", @ps)." { padding-top:5px; margin: 0; }\n";
+  $css .= $ind.join(", ", @ps).", p.NA, p.title { line-height: 25px; padding: 0px 5px 0px 0px; margin: 0; border-bottom: 1px solid #ccc; }\n";
   my @psb = map {"p.${_}::before"} keys(%$status);
-  $css .= $ind.join(", ", @psb)." { display:inline-block; width:20px; height:20px; border:1px solid gray; border-radius:25%; margin-right:5px; text-align:center; }\n";
+  $css .= $ind.join(", ", @psb).", p.NA::before { display:inline-block; width:25px; margin-right:5px; text-align:center; }\n";
+  $css .= $ind."p.title { color: white; background-color: #555; padding-left: 10px; }\n";
   foreach my $key (keys(%$status)) {
     $css .= $ind."p.${key}::before { content:\"".$status->{$key}{"symbol"}."\"; background-color:".$status->{$key}{"color"}."; }\n";
     $css .= $ind."p.${key}::after { content:\": ".$status->{$key}{"text"}."\"; }\n";
   }
+  $css .= $ind."p.NA::before { content:\"\\2022\"; background-color:white; color: #555; }\n";
   my @combinations = getCombinations(SEP, keys(%$status));
   foreach my $combination (@combinations) {
     my @colors;
@@ -156,12 +175,18 @@ sub makeCss {
     $css .= $ind."a.$combination { border-image: linear-gradient(to right, ".join(", ", @colors).") 1; }\n";
     $css .= $ind."a.arrow.$combination, a.line.$combination { background-image: linear-gradient(to right, ".join(", ", @colors)."); }\n";
   }
+  $css .= $ind."a.blink { animation: 1s linear infinite jiggler; }\n";
+  $css .= $ind."\@keyframes jiggler { from { transform: rotate(0deg) translateX(10px) rotate(0deg); } to { transform: rotate(360deg) translateX(10px) rotate(-360deg); }}\n";
   return $css;
 }
 
 sub makeJs {
+  # if one day we want to display elements without having to keep a key pressed:
+  # then comment the keyup listener, and use the following methods
+  # function toggle(e) { e.style.visibility=e.style.visibility=='visible'?'hidden':'visible'; }
+  # function toggleClass(e,c) { e.classList.toggle(c); }
   my ($ind) = @_;
-  my $js .= $ind."function moveTooltip(e){ var tt = document.getElementById(this.id + 'tt');var n = 15;var newX = e.clientX + n;var newY = e.clientY + n;if(newX + tt.offsetWidth >= window.innerWidth && newY + tt.offsetHeight >= window.innerHeight) {newX = window.innerWidth - tt.offsetWidth - n*2;newY = e.clientY - tt.offsetHeight - n*2;} else if(newX + tt.offsetWidth >= window.innerWidth) {newX = window.innerWidth - tt.offsetWidth - n*2;} else if(newY + tt.offsetHeight >= window.innerHeight) {newY = window.innerHeight - tt.offsetHeight - n*2 + (e.pageY-e.clientY);}tt.style.left = newX + 'px';tt.style.top = newY + 'px';tt.style.opacity = 1;};\n";
+  my $js .= $ind."function moveTooltip(e){var tt = document.getElementById(this.id + 'tt');var n = 15;var lmin = e.pageX + n;var tmin = e.pageY + n*2;var ttleft = Math.min(lmin, window.innerWidth + window.pageXOffset - tt.offsetWidth - n*2);var tttop = Math.min(tmin, window.innerHeight + window.pageYOffset - tt.offsetHeight - n*2);if(ttleft != lmin + n && tttop != tmin) tttop = e.pageY - tt.offsetHeight - n*2;tt.style.left = ttleft + 'px';tt.style.top = tttop + 'px';};\n";
   $js .= $ind."function showTooltip(e){ document.getElementById(this.id + 'tt').style.visibility = 'visible'; };\n";
   $js .= $ind."function hideTooltip(e){ document.getElementById(this.id + 'tt').style.visibility = 'hidden'; };\n";
   $js .= $ind."var items = document.getElementsByClassName('WITHTT');\n";
@@ -174,13 +199,19 @@ sub makeJs {
   $js .= $ind."document.addEventListener('keydown', event => {\n";
   $js .= $ind."\tif(event.keyCode == 72) {\n";
   $js .= $ind."\t\tfor(var i = 0; i < anchors.length; i++) { anchors[i].classList.add('h'); }\n";
+  $js .= $ind."\t} else if(event.keyCode == 69) {\n";
+  $js .= $ind."\t\tdocument.getElementById('info').style.visibility = 'visible';\n";
   $js .= $ind."\t} else if(event.keyCode == 76) {\n";
   $js .= $ind."\t\tdocument.getElementById('legend').style.visibility = 'visible';\n";
+  $js .= $ind."\t} else if(event.keyCode == 74) {\n";
+  $js .= $ind."\t\tfor(var i = 0; i < items.length; i++) { items[i].classList.add('blink'); }\n";
   $js .= $ind."\t}\n";
   $js .= $ind."});\n";
   $js .= $ind."document.addEventListener('keyup', event => {\n";
-  $js .= $ind."\tfor(var i = 0; i < anchors.length; i++) { anchors[i].classList.remove('h'); };\n";
-  $js .= $ind."\tdocument.getElementById('legend').style.visibility = 'hidden';\n";
+  $js .= $ind."\tif(event.keyCode == 72) for(var i = 0; i < anchors.length; i++) { anchors[i].classList.remove('h'); };\n";
+  $js .= $ind."\tif(event.keyCode == 74) for(var i = 0; i < items.length; i++) { items[i].classList.remove('blink'); };\n";
+  $js .= $ind."\tif(event.keyCode == 69) document.getElementById('info').style.visibility = 'hidden';\n";
+  $js .= $ind."\tif(event.keyCode == 76) document.getElementById('legend').style.visibility = 'hidden';\n";
   $js .= $ind."});\n";
   return $js;
 }
@@ -214,7 +245,7 @@ sub getTopLeftWidthHeight {
 
 sub getLineClipPath {
   my ($points) = @_; # ie. 877,777,873,768,880,768
-  my @points = split(",", $points);
+  my @points = map { $_ + $TRANSLATE } split(",", $points);
   die("Odd number of points not allowed") if(scalar(@points) % 2 != 0);
   # get values top, left, width and height
   my ($top, $left, $width, $height) = getTopLeftWidthHeight(@points);
@@ -314,7 +345,7 @@ sub transformArrowCoordinates {
 
 sub getArrowClipPath {
   my ($points) = @_; # ie. 877,777,873,768,880,768
-  my @points = split(",", $points);
+  my @points = map { $_ + $TRANSLATE } split(",", $points);
   my ($top, $left, $width, $height) = getTopLeftWidthHeight(@points);
   my @newPoints = transformArrowCoordinates(@points);
   my @coords;
@@ -327,43 +358,90 @@ sub getArrowClipPath {
 }
 
 sub getLegend {
-  my ($status, $ind) = @_;
+  my ($status, $excludedStatus, $indicateStatus, $ind) = @_;
+  my $bull1 = "&bull;&nbsp;";
+  my $bull2 = "&nbsp;&nbsp;&nbsp;&bull;&nbsp;";
   my $legend = "<div id=\"legend\">\n";
-  $legend .= "$ind\t<p>&bull;&nbsp;Rectangles represent a gene product and its complex (including an ortholog group)</p>\n";
-  $legend .= "$ind\t<p>&bull;&nbsp;Round rectangles represent a linked pathway</p>\n";
-  $legend .= "$ind\t<p>&bull;&nbsp;Lines represent a reaction or a relation (and also a gene or an ortholog group)</p>\n";
-  $legend .= "$ind\t<p>&bull;&nbsp;Circles specify any other molecule such as a chemical compound and a glycan</p>\n";
-  $legend .= "$ind\t<p>&bull;&nbsp;An element can have one or more of the following status:</p>\n";
-  foreach my $key (keys(%$status)) {
-    $legend .= "$ind\t<p>&nbsp;&nbsp;&nbsp;&bull;&nbsp;Symbol <font style=\"color:".$status->{$key}{"color"}."\">".$status->{$key}{"html"}."</font> means: '".$status->{$key}{"text"}."'</p>\n";
+  $legend .= "$ind\t<p>$bull1 The elements can have one or more of the following shape:</p>\n";
+  $legend .= "$ind\t<p>$bull2 Rectangles represent a gene product and its complex (including an ortholog group)</p>\n";
+  $legend .= "$ind\t<p>$bull2 Round rectangles represent a linked pathway</p>\n";
+  $legend .= "$ind\t<p>$bull2 Lines represent a reaction or a relation (and also a gene or an ortholog group)</p>\n";
+  $legend .= "$ind\t<p>$bull2 Circles specify any other molecule such as a chemical compound and a glycan</p>\n";
+  if($indicateStatus eq 1) {
+    $legend .= "$ind\t<p>$bull1 An element can have one or more of the following status:</p>\n";
+    foreach my $key (keys(%$status)) {
+      next if($key eq $excludedStatus);
+      $legend .= "$ind\t<p>$bull2 Symbol <font style=\"color:".$status->{$key}{"color"}."\">".$status->{$key}{"html"}."</font> means \"".$status->{$key}{"text"}."\": ".$status->{$key}{"description"}."</p>\n";
+    }
   }
-  $legend .= "$ind\t<p>&bull;&nbsp;Press 'H' to visualize the clickable links</p>\n";
+  $legend .= "$ind\t<p>$bull1 Shortcuts:</p>\n";
+  $legend .= "$ind\t<p>$bull2 Press 'E' to display information on the current Entry</p>\n";
+  $legend .= "$ind\t<p>$bull2 Press 'J' to make the elements Jiggle</p>\n";
+  $legend .= "$ind\t<p>$bull2 Press 'H' to Highlight the other links</p>\n";
   $legend .= "$ind</div>\n";
   return $legend;
 }
 
+sub parseInfo {
+  my ($value) = @_;
+  return $1 if($value =~ m/^([^\s]+) \[.*\]/);
+  return $value;
+}
+sub getInfoRow {
+  my ($name, $info, $tag, $link, $ind) = @_;
+  return "" if(!exists($info->{$tag}));
+  my $rows = "";
+  foreach my $value (@{$info->{$tag}}) {
+    my $content = $value;
+    if($link ne "") {
+      my $id = parseInfo($value);
+      $content = "<a href='https://www.kegg.jp/".($link eq "e" ? "entry" : "pathway")."/$id' target='_blank'>$value</a>";
+    }
+    $rows .= "$ind<tr><td>$name</td><td>$content</td></tr>\n";
+    $name = ""; # only print it once
+  }
+  return $rows;
+}
+sub getInfo {
+  my ($info, $ind) = @_;
+  my $legend = "<table id=\"info\">\n";
+  $legend .= "\t".getInfoRow("Entry", $info, "ENTRY", "e", $ind);
+  $legend .= "\t".getInfoRow("Name", $info, "NAME", "", $ind);
+  $legend .= "\t".getInfoRow("Description", $info, "DESCRIPTION", "", $ind);
+  $legend .= "\t".getInfoRow("Class", $info, "CLASS", "", $ind);
+  $legend .= "\t".getInfoRow("Pathway map", $info, "PATHWAY_MAP", "p", $ind);
+  $legend .= "\t".getInfoRow("Organism", $info, "ORGANISM", "", $ind);
+  $legend .= "\t".getInfoRow("Related pathways", $info, "REL_PATHWAY", "e", $ind);
+  $legend .= "\t".getInfoRow("KO pathways", $info, "KO_PATHWAY", "e", $ind);
+  $legend .= "$ind</table>\n";
+  return $legend;
+}
+
 sub createHtmlFile {
-  my ($confFile, $pngFile, $title, $outputFile, $kegg, $data, $status, $indicateSite) = @_;
+  my ($confFile, $pngFile, $info, $outputFile, $kegg, $data, $status, $indicateSite, $conditions, $indicateConditions, $indicateStatus, $excludedStatus) = @_;
   # $kegg{userId}{keggId} -> array(pathway)
-  # $data{userId}{site} -> status_key
+  # $data{userId}{site}{condition_id} -> status_key
+  # $conditions{condition_id} -> condition_name
   # $status{status_key} -> {id: int, text: string, color: #ffffff, symbol: \1234, html: &#4567;}
-  $VERBOSE = $confFile =~ m/01200.conf/ ? 1 : 0;
-  # print "Creating $outputFile from $confFile\n";
+  $VERBOSE = $confFile =~ m/03050.conf/ ? 1 : 0;
   
   # get the actual size of the png image
   my ($imgWidth, $imgHeight) = imgsize($pngFile);
+  my @names = @{$info->{"NAME"}};
   
   # create the HTML file and header
   open(my $fho, ">", $outputFile) or LsmboFunctions::stderr("Can't create output file '$outputFile': $!");
   print $fho "<!DOCTYPE html>\n";
   print $fho "<html>\n";
   print $fho "\t<head>\n";
-  print $fho "\t\t<title>$title</title>\n";
+  print $fho "\t\t<title>".$names[0]."</title>\n";
   print $fho "\t\t<style>\n".makeCss($status, "\t\t\t")."\t\t</style>\n";
   print $fho "\t</head>\n";
   print $fho "\t<body>\n";
   print $fho "\t\t".getImage($pngFile, $imgWidth, $imgHeight)."\n";
-  print $fho "\t\t".getLegend($status, "\t\t")."\n";
+  print $fho "\t\t<div id='help'>Press L to display the legend</div>\n";
+  print $fho "\t\t".getLegend($status, $excludedStatus, $indicateStatus, "\t\t")."\n";
+  print $fho "\t\t".getInfo($info, "\t\t")."\n";
   
   # create links for the SVG elements based on the coordinates of confFile
   my %items; my %itemsWithTooltips; my %tooltips;
@@ -379,8 +457,8 @@ sub createHtmlFile {
     if($type =~ m/circ \((\d+),(\d+)\) (\d+)/ || $type =~ m/filled_circ \((\d+),(\d+)\) (\d+)/) {
       $class = "circ";
       my $r = $3 * 1.5;
-      my $left = $1 - $r/2;
-      my $top = $2 - $r/2;
+      my $left = $1 - $r/2 + $TRANSLATE;
+      my $top = $2 - $r/2 + $TRANSLATE;
       $style = "left:${left}px;top:${top}px;width:${r}px;height:${r}px;";
     } elsif($type =~ m/line \(([\d,]+)\) (\d+)/) {
       $class = "line";
@@ -390,18 +468,26 @@ sub createHtmlFile {
       $style = getArrowClipPath($1);
     } elsif($type =~ m/rect \((\d+),(\d+)\) \((\d+),(\d+)\)/) {
       $class = "rect";
+      my $left = $1 + $TRANSLATE;
+      my $top = $2 + $TRANSLATE;
       my $rw = $3 - $1; my $rh = $4 - $2;
-      $style = "left:${1}px;top:${2}px;width:${rw}px;height:${rh}px;";
+      $style = "left:${left}px;top:${top}px;width:${rw}px;height:${rh}px;";
       $class .= "rounded" if($url =~ m/pathway/);
     }
     
     my @ids = getAssociatedIds($url, $kegg);
-    my $fullStatus = getFullStatus($data, @ids);
-    my $lines = makeTooltipText($data, $status, $indicateSite, @ids);
-    my $tooltip = makeTooltipBox("A$id", $lines, "\t\t");
+    my $fullStatus = "";
+    my $lines;
+    $fullStatus = getFullStatus($data, $excludedStatus, @ids);
+    $lines = makeTooltipText($data, $indicateSite, $conditions, $indicateConditions, $indicateStatus, $excludedStatus, @ids);
+    my $tooltip = makeTooltipBox("A$id", $name, $lines, "\t\t");
     
-    $class .= " WITHTT $fullStatus" if($tooltip ne "");
-    print $fho "\t\t<a id=\"A$id\" class=\"$class\" style=\"$style\" title=\"$name\" href=\"".KEGG_URL."$url\" target=\"_blank\"></a>\n";
+    my $title = "title=\"$name\"";
+    if($tooltip ne "") {
+      $class .= " WITHTT $fullStatus";
+      $title = ""; # it's in the tooltip
+    }
+    print $fho "\t\t<a id=\"A$id\" class=\"$class\" style=\"$style\" $title href=\"".KEGG_URL."$url\" target=\"_blank\"></a>\n";
     print $fho $tooltip; # will be "" if there is no tooltip
     $id++;
   }
