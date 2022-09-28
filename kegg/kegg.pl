@@ -132,6 +132,19 @@ sub looksLikeUniProt {
   return 0;
 }
 
+sub getFirstColumnNumber {
+  my @columns = ("col_id", "col_site", "col_pvalue", "col_fc", "col_tukey");
+  my @ids;
+  foreach my $column (@columns) {
+    if(exists($PARAMS{"type"}{"statistics"}{$column})) {
+      my $id = getColumnId($PARAMS{"type"}{"statistics"}{$column});
+      push(@ids, $id);
+    }
+  }
+  my @sortedIds = sort { $a <=> $b } @ids;
+  return $sortedIds[0];
+}
+
 sub extractData {
   # make a copy of the file, otherwise the XLSX parser may fail
   my $inputFile = "input.xlsx";
@@ -155,7 +168,7 @@ sub extractData {
   # get the conditions on the first line
   if($WITH_CONDS eq 1) {
     # determine the number of conditions in the file
-    my $estNbConds = ($col_max - $col_min) / 2;
+    my $estNbConds = ($col_max - $col_min - getFirstColumnNumber()) / 2;
     # set default conditions
     my $id = 0;
     %CONDITIONS = map { $id++ => "Condition $_" } (1 .. $estNbConds);
