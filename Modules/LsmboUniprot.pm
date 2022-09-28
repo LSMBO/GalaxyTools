@@ -16,13 +16,11 @@ use Exporter qw(import);
 our @EXPORT = qw(getUniprotRelease getFastaFromTaxonomyIds getFastaFromProteinIdsWithoutIdMapping getFastaFromProteinIdsWithIdMapping getTabularFromProteinIdsWithIdMapping getTabularFromProteinIdsWithoutIdMapping searchEntries UNIPROT_RELEASE getFastaFromUniprot REST_POST_Uniprot_tab_legacy REST_POST_Uniprot_fasta_legacy idmapping);
 
 my $DEFAULT_NB_IDS = 250;
-# my $DEFAULT_NB_IDS = 200;
 my $DEFAULT_SLEEP = 2;
 my $DEFAULT_MAX_WAIT_TIME = 120;
-# my $DEFAULT_MAX_WAIT_TIME = 240;
 my $DEFAULT_TO = "UniProtKB";
 my $LAST_UNIPROT_RELEASE = "";
-
+my $REST_URL = "https://rest.uniprot.org";
 
 
 #######################################
@@ -45,7 +43,7 @@ sub getFastaFromUniprot {
   $reviewed = "reviewed:true" if(lc($source) eq "sp");
   $reviewed = "reviewed:false" if(lc($source) eq "tr");
   my $options = $reviewed ne "" ? " AND ($reviewed)" : "";
-  my $url = "https://rest.uniprot.org/uniprotkb/stream?format=fasta$isoforms&query=($ids)$options";
+  my $url = "$REST_URL/uniprotkb/stream?format=fasta$isoforms&query=($ids)$options";
 
   my $fasta = sendGetRequest($url)->decoded_content;
   my $tempFastaFile = "uniprot-request.fasta";
@@ -100,7 +98,7 @@ sub getFastaFromTaxonomyIds {
 }
 
 # @ids: an array of ids
-sub getFastaFromProteinIdsWithoutIdMapping{
+sub getFastaFromProteinIdsWithoutIdMapping {
   my (@ids) = @_;
   return searchEntries("fasta", undef, \@ids);
 }
@@ -141,7 +139,7 @@ sub searchEntries {
   my ($format, $fieldsPtr, $idsPtr) = @_;
   my $output = "";
   # prepare the url
-  my $url = "https://rest.uniprot.org/uniprotkb/stream?format=$format";
+  my $url = "$REST_URL/uniprotkb/stream?format=$format";
   # add fields if any
   $url .= "&fields=".join(",", @{$fieldsPtr}) if($fieldsPtr && scalar(@{$fieldsPtr}) > 0);
   # split the ids in groups of 500 then merge the fasta output in a single response
@@ -157,11 +155,59 @@ sub searchEntries {
   return $output;
 }
 
+# $from: the database of the input ids
+# $to: the database requested
+# $taxonId: the taxonomy id if required (ie. for gene name) ; use undef if no taxonomy id is needed
+# @ids: an array of ids
+sub idmapping {
+  my ($from, $to, $taxonId, @ids) = @_;
+  my %mappedIds;
+  # avoid the hard limitation of 100000 max ids per request
+  my $maxNbIds = 85000;
+  for(my $i = 0; $i < scalar(@ids); $i += $maxNbIds) {
+    # run id mapping for this subset
+    my $stop = min($i + $maxNbIds - 1, scalar(@ids) - 1);
+    my %mapping = %{idmapping_unit($from, $to, $taxonId, @ids[$i .. $stop])};
+    # add the results to the main output
+    foreach my $key (keys(%mapping)) {
+      $mappedIds{$key} = $mapping{$key};
+    }
+  }
+  return \%mappedIds;
+}
 
 
 #######################
 ### private methods ###
 #######################
+
+sub sendSimpleGetRequest {
+  my ($url) = @_;
+  my $contact = LsmboFunctions::getContactMailAddress();
+  my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
+  my $request = HTTP::Request->new(GET => $url);
+  $request->header('content-type' => 'application/json');
+  return $agent->request($request);
+}
+
+sub sendGetRequest {
+  my ($url) = @_;
+  # set a default timer of 60 seconds
+  my $timer = 0;
+  while($timer <= $DEFAULT_MAX_WAIT_TIME) {
+    my $response = sendSimpleGetRequest($url);
+    $LAST_UNIPROT_RELEASE = $response->header('X-UniProt-Release');
+    if ($response->is_success) {
+      return $response;
+    } else {
+      LsmboFunctions::stdwarn("The request failed with error ".$response->code." (".$response->message.") and will be run again in a few seconds") if($timer != 0);
+      # die Dumper($response)."\n" if($response->code eq 429);
+      $timer += 10;
+      sleep 10;
+    }
+  }
+  LsmboFunctions::stderr("The request has failed too many times and will not be tried anymore. The URL was: $url");
+}
 
 sub extractIds {
   my ($inputFile) = @_;
@@ -241,119 +287,100 @@ sub setIdTag {
   return "(id:$id)";
 }
 
-# $from: the database of the input ids
-# $to: the database requested
-# $taxonId: the taxonomy id if required (ie. for gene name) ; use undef if no taxonomy id is needed
-# @ids: an array of ids
-# TODO use pagination instead
-sub idmapping {
+### the following methods for idmapping are translated from the uniprot python example ###
+
+# runs a full idmapping on all the given ids
+sub idmapping_unit {
   my ($from, $to, $taxonId, @ids) = @_;
-  my %mappedIds;
-  # split the ids in groups of 250
-  for(my $i = 0; $i < scalar(@ids); $i += $DEFAULT_NB_IDS) {
-    my $stop = min($i + $DEFAULT_NB_IDS - 1, scalar(@ids) - 1);
-    # prepare the parameters
-    my $params = ['from' => $from, 'to' => $to, 'ids' => join(",", @ids[$i .. $stop])];
-    push(@$params, 'taxon' => $taxonId) if($taxonId && $taxonId ne "");
-    # submit the job
-    my $jobId = submitJobAndWait("https://rest.uniprot.org/idmapping/run", $params);
-    # download the results
-    my $json = getJobResults($jobId);
-    # my $json = getJobResults($jobId, "uniref");
-    # add the output to the main hash
-    foreach my $output (@{$json->{"results"}}) {
-      $mappedIds{$output->{"from"}} = $output->{"to"};
-      # print $output->{"from"}." => ".$output->{"to"}."\n";
-    }
-    sleep $DEFAULT_SLEEP;
+  my $map;
+  my $job_id = submit_id_mapping($from, $to, $taxonId, @ids);
+  if(check_id_mapping_results_ready($job_id)) {
+    my $link = get_id_mapping_results_link($job_id);
+    $map = get_id_mapping_results_search($link);
   }
-  return \%mappedIds;
+  return $map;
 }
 
-sub submitJobAndWait {
-  my ($url, $params) = @_;
-  # send to request to uniprot
+# sends the request for idmapping
+sub submit_id_mapping {
+  my ($from, $to, $taxonId, @ids) = @_;
+  
+  # prepare parameters for the POST request
+  my $params = ['from' => $from, 'to' => $to, 'ids' => join(",", @ids)];
+  push(@$params, 'taxon' => $taxonId) if($taxonId && $taxonId ne "");
+  
+  # send the request to uniprot
   my $contact = LsmboFunctions::getContactMailAddress();
   my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
   push @{$agent->requests_redirectable}, 'POST';
-  my $response = $agent->post($url, $params, 'Content_Type' => 'form-data');
-
-  # extract the jobId
+  my $response = $agent->post("$REST_URL/idmapping/run", $params, 'Content_Type' => 'form-data');
+  
+  # return the jobId
   my $jobId = "";
   if ($response->is_success) {
     my $version = $response->header('X-UniProt-Release');
     $jobId = $response->decoded_content();
     $jobId =~ s/.*jobId":"//;
     $jobId =~ s/"}//;
+    # print "ABU job ID: $jobId\n";
   } else {
     LsmboFunctions::stderr("UniProtKB HTTP request failed with error code:".$response->code." ; params where ".Dumper($params));
   }
-  
-  # wait until the job is done
-  waitForJobEnding($jobId);
-  
   return $jobId;
 }
 
-sub waitForJobEnding {
-  my ($jobId, $maxWaitTime) = @_;
-  # set a default timer of 60 seconds
-  $maxWaitTime = $DEFAULT_MAX_WAIT_TIME if(!$maxWaitTime);
-  my $timer = 0;
-  # start to request the job status
-  sleep $DEFAULT_SLEEP;
-  my $jobStatus = getJobStatus($jobId);
-  while($jobStatus eq 0 && $timer <= $maxWaitTime) {
-    sleep $DEFAULT_SLEEP;
-    $timer += $DEFAULT_SLEEP;
-    $jobStatus = getJobStatus($jobId);
-  }
-  LsmboFunctions::stderr("Job $jobId could not end in the given time") if($timer > $maxWaitTime);
-}
-
-sub getJobStatus {
+# checks the status of the job
+sub check_id_mapping_results_ready {
   my ($jobId) = @_;
-  my $url = "https://rest.uniprot.org/idmapping/status/$jobId";
-  my $response = sendGetRequest($url);
-  my $code = $response->code;
-  return 1 if($code eq 200 || $code eq 303);
-  return 0;
-}
-
-sub getJobResults {
-  my ($jobId, $db) = @_;
-  # the "stream" url (instead of the "results" url) returns the full results without paging
-  my $url = "https://rest.uniprot.org/idmapping/stream/$jobId";
-  $url = "https://rest.uniprot.org/idmapping/uniprotkb/results/stream/$jobId" if($db); # more detailed results, different json
-  return decode_json(sendGetRequest($url)->decoded_content);
-}
-
-sub sendSimpleGetRequest {
-  my ($url) = @_;
-  my $contact = LsmboFunctions::getContactMailAddress();
-  my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
-  my $request = HTTP::Request->new(GET => $url);
-  $request->header('content-type' => 'application/json');
-  return $agent->request($request);
-}
-
-sub sendGetRequest {
-  my ($url) = @_;
-  # set a default timer of 60 seconds
+  my $jobStatus = "";
   my $timer = 0;
-  while($timer <= $DEFAULT_MAX_WAIT_TIME) {
-    my $response = sendSimpleGetRequest($url);
-    $LAST_UNIPROT_RELEASE = $response->header('X-UniProt-Release');
-    if ($response->is_success) {
-      return $response;
+  while($jobStatus ne "FINISHED" && $timer <= $DEFAULT_MAX_WAIT_TIME) {
+    if($timer > 0) {
+      # print "Retrying in $DEFAULT_SLEEP seconds\n";
+      sleep $DEFAULT_SLEEP;
+      $timer += $DEFAULT_SLEEP;
+    }
+    my $response = sendGetRequest("$REST_URL/idmapping/status/$jobId");
+    my %json = %{decode_json($response->decoded_content())};
+    if(exists($json{"jobStatus"})) {
+      $jobStatus = $json{"jobStatus"};
     } else {
-      LsmboFunctions::stdwarn("The request failed with error ".$response->code." (".$response->message.") and will be run again in a few seconds") if($timer != 0);
-      # die Dumper($response)."\n" if($response->code eq 429);
-      $timer += 10;
-      sleep 10;
+      $jobStatus = "FINISHED";
     }
   }
-  LsmboFunctions::stderr("The request has failed too many times and will not be tried anymore. The URL was: $url");
+  return $jobStatus eq "FINISHED";
+}
+
+# get the link of the first page of the results
+sub get_id_mapping_results_link {
+  my ($jobId) = @_;
+  my $response = sendGetRequest("$REST_URL/idmapping/details/$jobId");
+  # TODO test if KO
+  my $json = decode_json($response->decoded_content());
+  return $json->{"redirectURL"};
+}
+
+# get the link of the next page of the results
+sub get_next_link {
+  my ($response) = @_;
+  return $1 if($response->header("link") && $response->header("link") =~ m/<(.+)>; rel="next"/);
+  return "";
+}
+
+# get all the results, page by page
+sub get_id_mapping_results_search {
+  my ($url) = @_;
+  my %mappedIds;
+  while($url ne "") {
+    my $response = sendGetRequest($url);
+    # TODO test if KO
+    my $json = decode_json($response->decoded_content);
+    foreach my $output (@{$json->{"results"}}) {
+      $mappedIds{$output->{"from"}} = $output->{"to"}{"primaryAccession"};
+    }
+    $url = get_next_link($response);
+  }
+  return \%mappedIds;
 }
 
 1;
