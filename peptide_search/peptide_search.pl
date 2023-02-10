@@ -14,6 +14,7 @@ my ($paramFile, $outputFile, $fastaFileName) = @ARGV;
 # global variables
 my %PARAMS = %{parameters($paramFile)};
 # make sure the boolean value are in text
+$PARAMS{"nb"} = 1 if(!exists($PARAMS{"nb"}));
 $PARAMS{"B"} = booleanToString($PARAMS{"B"}) if exists($PARAMS{"B"});
 $PARAMS{"J"} = booleanToString($PARAMS{"J"}) if exists($PARAMS{"J"});
 $PARAMS{"R"} = booleanToString($PARAMS{"R"}) if exists($PARAMS{"R"});
@@ -81,28 +82,30 @@ my $sheet1 = $workbook->add_worksheet("Peptide Search");
 my $line1 = 0;
 writeExcelLine($sheet1, $line1++, "Tool version", getVersion());
 writeExcelLine($sheet1, $line1++, "Search date", getDate("%d %B %Y %H:%M:%S (%Z)"));
-writeExcelLine($sheet1, $line1++, "Settings: ", "");
+# writeExcelLine($sheet1, $line1++, "Settings: ", "");
 if($PARAMS{"proteins"}{"source"} eq "fasta") {
-  writeExcelLine($sheet1, $line1++, "- Fasta file", $fastaFileName);
+  writeExcelLine($sheet1, $line1++, "Settings", "User Fasta file: ".$fastaFileName);
 } else {
-  writeExcelLine($sheet1, $line1++, "- Taxonomies", getTaxonomyNamesAsString($PARAMS{"proteins"}{"taxo"}));
+  writeExcelLine($sheet1, $line1++, "Settings", "Retrieving ".getTaxonomyNamesAsString($PARAMS{"proteins"}{"taxo"}));
   if($PARAMS{"proteins"}{"uniprot"} eq 'SP') {
-    writeExcelLine($sheet1, $line1++, "- Source", "UniProt Swiss-Prot");
+    writeExcelLine($sheet1, $line1++, "", "From UniProt Swiss-Prot");
   } elsif($PARAMS{"proteins"}{"uniprot"} eq 'TR') {
-    writeExcelLine($sheet1, $line1++, "- Source", "UniProt TrEMBL");
+    writeExcelLine($sheet1, $line1++, "", "From UniProt TrEMBL");
   } else {
-    writeExcelLine($sheet1, $line1++, "- Source", "UniProt Swiss-Prot and TrEMBL");
+    writeExcelLine($sheet1, $line1++, "", "From UniProt Swiss-Prot and TrEMBL");
   }
+  writeExcelLine($sheet1, $line1++, "", "UniProt version: $uniprotVersion");
 }
-writeExcelLine($sheet1, $line1++, "- Do not distinguish I and L", $PARAMS{"J"});
-writeExcelLine($sheet1, $line1++, "- Do not distinguish D and N", $PARAMS{"B"});
-writeExcelLine($sheet1, $line1++, "- Allow regular expressions in the peptides", $PARAMS{"R"});
-setColumnsWidth($sheet1, 40, 40);
+writeExcelLine($sheet1, $line1++, "", "Search for ".$PARAMS{"nb"}." amino acids on both sides");
+writeExcelLine($sheet1, $line1++, "", "Do not distinguish I and L") if($PARAMS{"J"} eq "true");
+writeExcelLine($sheet1, $line1++, "", "Do not distinguish D and N") if($PARAMS{"B"} eq "true");
+writeExcelLine($sheet1, $line1++, "", "Allow regular expressions in the peptides") if($PARAMS{"R"} eq "true");
+setColumnsWidth($sheet1, 20, 40);
 
 my $sheet2 = $workbook->add_worksheet("Results");
 my $line = 0;
 my $header = $workbook->add_format(bold => 1, bottom => 1, valign => 'top', text_wrap => 1);
-writeExcelLineF($sheet2, $line++, $header, "Input sequence", "Peptide", "Protein", "Description", "Start", "Stop", "Before", "After");
+writeExcelLineF($sheet2, $line++, $header, "Input sequence", "Protein", "Description", "Start", "Stop", "Before", "Peptide", "After");
 # read the fasta file, once
 open(my $fh, "<", $fasta) or stderr("Can't open the fasta file: $!");
 my $acc = ""; my $desc = ""; my $seq = "";
@@ -135,7 +138,7 @@ if(scalar(@missingPeptides) > 0) {
 # finalize
 $sheet2->freeze_panes(1);
 $sheet2->autofilter(0, 0, $line - 1, 7);
-setColumnsWidth($sheet2, 25, 25, 25, 25, 10, 10, 10, 10);
+setColumnsWidth($sheet2, 25, 25, 25, 10, 10, 10, 25, 10);
 $workbook->close();
 unlink($inputCopy) if(-f $inputCopy);
 unlink($fasta) if($PARAMS{"proteins"}{"source"} ne "fasta");
@@ -154,18 +157,33 @@ sub joker {
 sub searchMatches {
   my ($acc, $desc, $seq, $peptides, $originalPeptide) = @_;
   my $jseq = joker($seq);
+  my $nb = $PARAMS{"nb"};
   my $p = 0;
   foreach my $peptide (@$peptides) {
     my $i = index($jseq, $peptide, $p);
     if($i > -1) {
+      # get the start and stop positions
       my $start = $i + 1;
       my $stop = $start + length($peptide);
-      my $before = ""; # before it was "^"
-      $before = substr($seq, $i - 1, 1) unless($i == 0);
-      my $after = ""; # before it was "\$"
-      $after = substr($seq, $stop - 1, 1) if($stop <= length($seq));
+      # get the amino acid(s) before
+      my $before = "";
+      my $j = $i;
+      while($j > 0 && length($before) ne $nb) {
+        $before = substr($seq, $j-- - 1, 1).$before;
+      }
+      # get the amino acid(s) after
+      my $after = "";
+      $j = $stop - 1;
+      while($j < length($seq) && length($after) ne $nb) {
+        $after .= substr($seq, $j++, 1);
+      }
+      # add underscore characters for N-term and C-term peptides (more readable)
+      while(length($before) ne $nb) { $before = "_".$before; }
+      while(length($after) ne $nb) { $after .= "_"; }
+      # get the peptide that is in the fasta sequence
       $peptide = substr($seq, $start - 1, $stop - 1);
-      writeExcelLine($sheet2, $line++, $originalPeptide, $peptide, $acc, $desc, $start, $stop, $before, $after);
+      # write it down
+      writeExcelLine($sheet2, $line++, $originalPeptide, $acc, $desc, $start, $stop, $before, $peptide, $after);
       $peptides{$originalPeptide}++;
       $p = $i + 1;
     }

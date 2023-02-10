@@ -1,4 +1,4 @@
-<tool id="peptide_search" name="Peptide search" version="1.0.0">
+<tool id="peptide_search" name="Peptide search" version="1.1.0">
   <description>Searches for peptides in Fasta files</description>
   <requirements>
   </requirements>
@@ -51,6 +51,7 @@
         </param>
       </when>
     </conditional>
+    <param name="nb" label="Number of amino acids to return on each side" type="integer" value="1" />
     <param name="J" type="boolean" display="checkboxes" checked="no" label="Do not distinguish I and L" />
     <param name="B" type="boolean" display="checkboxes" checked="no" label="Do not distinguish D and N" />
     <param name="R" type="boolean" display="checkboxes" checked="no" label="Allow regular expressions in the peptides (much slower!!)" />

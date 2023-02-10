@@ -8,6 +8,7 @@
     "source": "file",
     "peptideFile": "./peptides.txt"
   },
+  "nb": 2,
   "B": true,
   "J": true,
   "R": true
