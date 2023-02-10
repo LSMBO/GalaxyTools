@@ -70,6 +70,7 @@
 Searches for peptides within a Fasta file. If taxonomy ids are provided, the corresponding Fasta file will be automatically downloaded from UniProt.
 Some options are available, such as considering that Leucin and Isoleucin are equivalent, or considering that Aspartate and Asparagine are equivalent.
 Another option is to allow the use of Regular Expressions in the peptide list. Here are some possibilities offered by Regular expressions:
+
 * Question mark '?': indicates zero or one occurences of a character. For instance, the sequence "PEPTI?DE" would match with either "PEPTDE" and "PEPTIDE".
 * Asterisk sign '*': indicates zero or more occurences of a character. For instance, the sequence "PEPTI*DE" would match with "PEPTDE", "PEPTIDE", "PEPTIIDE", "PEPTIIIDE" and so on.
 * Plus sign '+': indicates one or more occurences of a character. For instance, the sequence "PEPTI+DE" would match with "PEPTIDE", "PEPTIIDE", "PEPTIIIDE" and so on (but not with "PEPTDE").
