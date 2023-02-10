@@ -10,7 +10,7 @@ use LWP::UserAgent;
 
 # only export these methods so they can be used without specifying the namespace
 use Exporter qw(import);
-our @EXPORT = qw(entrezFetch getNcbiRelease);
+our @EXPORT = qw(entrezFetch getNcbiRelease getTaxonomyNames getTaxonomyNamesAsString);
 
 
 sub entrezSearchAndFetch {
@@ -112,6 +112,51 @@ sub getNcbiRelease {
   my $build = $1 if ($output =~ /<DbBuild>(\S+)<\/DbBuild>/);
   return $build;
 }
+
+sub getTaxonomyNames {
+  my (@ids) = @_;
+  if(scalar(@_) eq 1 && $_[0] !~ m/^\d+$/) {
+    my $ids = $_[0];
+    $ids =~ s/[^\d]/,/g;
+    $ids =~ s/,+/,/g;
+    @ids = split(",", $ids);
+  }
+  my $outputFile = "LSMBO_temps_taxonomies.txt";
+  entrezFetch("taxonomy", "", "", $outputFile, @ids);
+  # store the ids in a hash
+  my %ids;
+  foreach my $id (@ids) {
+    $ids{$id} = "";
+  }
+  # read the file
+  if(open(my $fh, "<", $outputFile)) {
+    my $lastId = 0;
+    while(<$fh>) {
+      chomp;
+      if(m/<TaxId>(\d+)<\/TaxId>/) {
+        $lastId = $1;
+      } elsif(m/<ScientificName>(.*)<\/ScientificName>/) {
+        $ids{$lastId} = $1 if(exists($ids{$lastId}));
+      }
+    }
+    close($fh);
+  }
+  # delete the file
+  unlink($outputFile);
+  # return an array of strings
+  return \%ids;
+}
+
+sub getTaxonomyNamesAsString {
+  my %names = %{getTaxonomyNames(@_)};
+  # return a string representation: taxo1 (id1), taxo2, (id2), ...
+  my @names;
+  foreach my $id (sort(keys(%names))) {
+    push(@names, $names{$id}." ($id)");
+  }
+  return join(", ", @names);
+}
+
 
 1;
 

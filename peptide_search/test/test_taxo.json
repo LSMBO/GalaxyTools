@@ -1,0 +1,14 @@
+{
+  "proteins": {
+    "source": "ids",
+    "uniprot": "SP",
+    "taxo": "9606,7215"
+  },
+  "peptides": {
+    "source": "file",
+    "peptideFile": "./peptides.txt"
+  },
+  "B": true,
+  "J": true,
+  "R": true
+}

@@ -1,0 +1,88 @@
+<tool id="peptide_search" name="Peptide search" version="1.0.0">
+  <description>Searches for peptides in Fasta files</description>
+  <requirements>
+  </requirements>
+  <command detect_errors="exit_code"><![CDATA[
+    perl $__tool_directory__/peptide_search.pl '$inputs' '$output'
+    #if $proteins.source == 'file':
+      '${fastaFile.display_name}'
+    #end if
+  ]]></command>
+  <configfiles>
+    <inputs name="inputs" data_style="paths" />
+  </configfiles>
+  <inputs>
+    <conditional name="proteins">
+      <param name="source" type="select" display="radio" label="Where do you want to search your peptides">
+        <option selected="true" value="file">Fasta database</option>
+        <option value="ids">Taxonomy identifiers</option>
+      </param>
+      <when value="file">
+        <param format="fasta" name="fastaFile" type="data" label="Fasta database" multiple="false"/>
+      </when>
+      <when value="ids">
+        <param name="uniprot" type="select" label="Source" help="From which database do you want to extract your sequences ?" >
+          <option value="SP" selected="true">Swiss-Prot (reviewed proteins only)</option>
+          <option value="TR">TrEMBL (non-reviewed proteins only)</option>
+          <option value="UN">UniprotKB (Swiss-Prot and TrEMBL)</option>
+        </param>
+        <param name="taxo" size="50" type="text" value="" optional="false" label="Taxonomy ids, separated by commas (ie. '9606,7215')" help="Taxonomies are available here: https://www.ncbi.nlm.nih.gov/taxonomy">
+          <validator type="regex" message="Numeric ids separated by comma">^([0-9]+,\s*)*[0-9]+$</validator>
+        </param>
+      </when>
+    </conditional>
+    <conditional name="peptides">
+      <param name="source" type="select" display="radio" label="Select source">
+        <option value="list" selected="true">Peptide list</option>
+        <option value="file">Peptide file</option>
+        <option value="xlsx" selected="true">Excel input file</option>
+      </param>
+      <when value="list">
+        <param name="peptideList" label="Peptide list" type="text" area="true" help="Separate entries with a new line, a space character, a comma or a dash. Avoid characters ';' and '|'." />
+      </when>
+      <when value="file">
+        <param format="txt" name="peptideFile" type="data" label="Peptide file" multiple="false"/>
+      </when>
+      <when value="xlsx">
+        <param name="excelFile" type="data" multiple="false" format="xlsx" label="Excel input file" />
+        <param name="sheetNumber" label="Number of the sheet containing the protein identifiers" type="integer" value="1" help="" />
+        <param name="cellAddress" label="Address of the first protein identifier" type="text" value="A2">
+          <validator type="regex" message="Expected format is Letter(s) followed by a Number">^[a-zA-Z]+[0-9]+$</validator>
+        </param>
+      </when>
+    </conditional>
+    <param name="J" type="boolean" display="checkboxes" checked="no" label="Do not distinguish I and L" />
+    <param name="B" type="boolean" display="checkboxes" checked="no" label="Do not distinguish D and N" />
+    <param name="R" type="boolean" display="checkboxes" checked="no" label="Allow regular expressions in the peptides (much slower!!)" />
+  </inputs>
+
+  <outputs>
+    <data format="xlsx" name="output" label="PeptideSearch-${time.strftime('%Y%m%d-%H%M')}" />
+  </outputs>
+  <tests>
+    <test>
+    </test>
+  </tests>
+  <help><![CDATA[
+    
+**What it does**
+
+Searches for peptides within a Fasta file. If taxonomy ids are provided, the corresponding Fasta file will be automatically downloaded from UniProt.
+Some options are available, such as considering that Leucin and Isoleucin are equivalent, or considering that Aspartate and Asparagine are equivalent.
+Another option is to allow the use of Regular Expressions in the peptide list. Here are some possibilities offered by Regular expressions:
+* Question mark '?': indicates zero or one occurences of a character. For instance, the sequence "PEPTI?DE" would match with either "PEPTDE" and "PEPTIDE".
+* Asterisk sign '*': indicates zero or more occurences of a character. For instance, the sequence "PEPTI*DE" would match with "PEPTDE", "PEPTIDE", "PEPTIIDE", "PEPTIIIDE" and so on.
+* Plus sign '+': indicates one or more occurences of a character. For instance, the sequence "PEPTI+DE" would match with "PEPTIDE", "PEPTIIDE", "PEPTIIIDE" and so on (but not with "PEPTDE").
+* Dot '.': this character matches for any character, and can be combined with the previous signs. For instance, "PEPT.DE" would match with "PEPTIDE" or "PEPTLDE" or "PEPTADE", etc. And "PEPT.*DE" can match with anything starting with "PEPT" and ending with "DE".
+* Square brackets: matches for a single character that is listed in the brackets. For instance, the sequence "PEPT[IL]DE" would match with either "PEPTIDE" and "PEPTLDE".
+* Square brackets with a circumflex accent: this is the opposite version of the brackets, il will match for any character other than those listed in the brackets. For instance "PEPT[^IL]DE" will NOT match with "PEPTIDE" but could match with "PEPTWDE".
+* Circumflex accent '^': when this accent is put at the beggining of the expression, it means that the match will only be possible at the start of the text. For instance, "^PEPTIDE" can only match with an N-terminal peptide (it's up to you to add a methionine).
+* Dollar sign '$': when this sign is put at the end of the expression, it means that the match will only be possible at the end of the text. For instance, "PEPTIDE$" can only match with a C-terminal peptide.
+* More information here: https://en.wikipedia.org/wiki/Regular_expression
+
+Keep in mind that the search will only be performed on the protein sequences, and that it will always be case insensitive.
+
+  ]]></help>
+  <citations>
+  </citations>
+</tool>

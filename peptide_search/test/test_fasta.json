@@ -1,0 +1,13 @@
+{
+  "proteins": {
+    "source": "fasta",
+    "fastaFile": "test.fasta"
+  },
+  "peptides": {
+    "source": "file",
+    "peptideFile": "./peptides.txt"
+  },
+  "B": true,
+  "J": true,
+  "R": true
+}
