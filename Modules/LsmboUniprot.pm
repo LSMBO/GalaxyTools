@@ -27,6 +27,42 @@ my $REST_URL = "https://rest.uniprot.org";
 ### public methods for legacy calls ###
 #######################################
 
+sub checkFastaCompleteness {
+  my ($fasta, $expected) = @_;
+  open(my $fh, "<", $fasta) or LsmboFunctions::stderr("Failed to open fasta file: $!");
+  my $nb = 0;
+  while(<$fh>) {
+    $nb++ if(m/^>/);
+  }
+  close $fh;
+  LsmboFunctions::stderr("The download of the fasta file has failed: $nb proteins have been retrieved instead of $expected. Probably a problem with UniProt servers, please try again later.") if($nb ne $expected);
+  print(">> $nb proteins where returned by UniProt\n");
+}
+
+sub downloadFasta {
+  my ($url) = @_;
+  # my $nb = 0;
+  my $total = -1;
+  my $isInError = 0;
+  my $tempFastaFile = "uniprot-request.fasta";
+  open(my $fh, ">", $tempFastaFile) or LsmboFunctions::stderr("Failed to create output file: $!");
+  while($isInError == 0 && $url ne "") {
+    my $response = sendGetRequest($url);
+    if($total eq -1) {
+      $total = $response->header('X-Total-Results');
+      LsmboFunctions::stderr("Request has failed") if(!$total);
+      print(">> $total proteins are expected for the current request\n");
+    }
+    my $content = $response->decoded_content;
+    $isInError++ if($content eq "");
+    print $fh $content;
+    $url = get_next_link($response);
+  }
+  close $fh;
+  checkFastaCompleteness($tempFastaFile, $total);
+  return $tempFastaFile;
+}
+
 sub getFastaFromUniprot {
   my ($source, $genopts, $action, @ids) = @_;
   
@@ -38,19 +74,17 @@ sub getFastaFromUniprot {
   print "Searching proteins matching the requested taxonomies\n";
   my $isoforms = $genopts =~ m/isoforms/ ? "&includeIsoform=true" : "";
   my $idTag = $action eq "proteome" ? "proteome" : "taxonomy_id";
-  my $ids = join(" OR ", map { "$idTag:$_" } @ids);
+  my $ids = join(" OR ", map { "($idTag:$_)" } @ids);
   my $reviewed = "";
   $reviewed = "reviewed:true" if(lc($source) eq "sp");
   $reviewed = "reviewed:false" if(lc($source) eq "tr");
   my $options = $reviewed ne "" ? " AND ($reviewed)" : "";
-  my $url = "$REST_URL/uniprotkb/stream?format=fasta$isoforms&query=($ids)$options";
+  # my $url = "$REST_URL/uniprotkb/stream?format=fasta$isoforms&query=($ids)$options";
+  # stream the results instead, it allows to know in advance the total number of proteins to expect
+  # but it seems that the chunk size cannot be anything else than 500
+  my $url = "$REST_URL/uniprotkb/search?format=fasta$isoforms&query=($ids)$options&size=500";
 
-  my $fasta = sendGetRequest($url)->decoded_content;
-  my $tempFastaFile = "uniprot-request.fasta";
-  open(my $fh, ">", $tempFastaFile) or LsmboFunctions::stderr("Failed to create output file: $!");
-  print $fh  $fasta;
-  close $fh;
-  return ($tempFastaFile, $LAST_UNIPROT_RELEASE);
+  return (downloadFasta($url), $LAST_UNIPROT_RELEASE);
 }
 
 sub REST_POST_Uniprot_tab_legacy {
