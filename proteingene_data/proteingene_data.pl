@@ -51,7 +51,8 @@ if($addInterPro eq "true") {
   my $file = "entry.list";
   print "Downloading InterPro file '$file'\n";
   # system("wget ftp://ftp.ebi.ac.uk/pub/databases/interpro/$file");
-  downloadFile("ftp://ftp.ebi.ac.uk/pub/databases/interpro/$file");
+  #downloadFile("ftp://ftp.ebi.ac.uk/pub/databases/interpro/entry.list");
+  downloadFile("ftp://ftp.ebi.ac.uk/pub/databases/interpro/current_release/$file");
   open(my $fh, "<", "$file") or stderr("Can't open InterPro file '$file': $!");
   while(<$fh>) {
     chomp;

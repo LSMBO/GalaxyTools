@@ -1,4 +1,4 @@
-<tool id="proteingene_data" name="Protein/gene data" version="1.3.1">
+<tool id="proteingene_data" name="Protein/gene data" version="1.3.2">
     <description>Extraction of protein information</description>
     <command detect_errors="exit_code"><![CDATA[
         perl $__tool_directory__/proteingene_data.pl '$inputs' '$output'
