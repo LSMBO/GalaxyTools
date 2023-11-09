@@ -10,6 +10,7 @@ use LsmboRest qw(getQuickGOVersion REST_GET_Uniprot);
 use LsmboUniprot qw(searchEntries);
 
 use File::Path qw(make_path remove_tree);
+use JSON::XS;
 
 # my ($taxonomyId, $source, $outputFile) = @ARGV;
 my ($paramFile, $outputFile) = @ARGV;
