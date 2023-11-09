@@ -170,7 +170,7 @@ print "Correct ending of the script\n";
 
 exit;
 
-sub getUniprotTaxonomyNames {
+sub getUniprotTaxonomyNames_old {
     my ($taxonomyId) = @_;
     my $scientificName = "";
     my $commonName = "";
@@ -191,6 +191,24 @@ sub getUniprotTaxonomyNames {
     }
     
     my $fullName = "$scientificName ($commonName)";
+    print "Taxonomy $taxonomyId stands for '$fullName'\n";
+    return ($scientificName, $fullName, $version);
+}
+
+sub getUniprotTaxonomyNames {
+    my ($taxonomyId) = @_;
+
+    # request the Uniprot REST API
+    my $url = "https://www.ebi.ac.uk/proteins/api/taxonomy/id/$taxonomyId";
+    my ($message, $version) = REST_GET_Uniprot($url);
+    
+    # response is in JSON
+    my $json = JSON::XS::decode_json($message);
+    my $scientificName = $json->{"scientificName"};
+    my $commonName = $json->{"commonName"};
+    my $fullName = "$scientificName ($commonName)";
+    
+    # return the scientific and full names
     print "Taxonomy $taxonomyId stands for '$fullName'\n";
     return ($scientificName, $fullName, $version);
 }
