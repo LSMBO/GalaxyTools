@@ -260,20 +260,16 @@ sub getTabularFromProteinIds{
   my ($fieldsPtr, $mappedIdsPtr) = @_;
   
   # get the ids to search and the new ids as keys to the input ids
-  my %mappedIds = %{$mappedIdsPtr};
-  my @inputIds = sort(values(%mappedIds));
-  my %reversedMappedIds;
-  while(my ($key, $value) = each %mappedIds) {
-    push(@{$reversedMappedIds{$value}}, $key);
-  }
-  
+  my %mappedIds = %{$mappedIdsPtr}; # user entry => accession
+  my @inputIds = sort(values(%mappedIds)); # list of accession numbers
+	
   # always search id and accession, even if they are already requested (this will help us tie together input and output)
   my @fields = @{$fieldsPtr};
   push(@fields, "id", "accession");
   
   # send the HTTP request
   my @data = split(/\n/, searchEntries("tsv", \@fields, \@inputIds));
-  
+	
   # prepare the output with the uniprot version added
   my %output;
   $output{UNIPROT_RELEASE()} = $LAST_UNIPROT_RELEASE;
@@ -287,16 +283,16 @@ sub getTabularFromProteinIds{
     my $id = pop(@items);
     # searches the original user entry in %mappedIds and either $acc or $id
     my $userEntry = "";
-    if(grep(/$acc/, @inputIds)) {
+    if(exists($mappedIds{$acc})) {
       $userEntry = $acc;
-    } elsif(grep(/$id/, @inputIds)) {
+		} elsif(exists($mappedIds{$id})) {
       $userEntry = $id;
-    }
+		}
     # add the items to hash, with the user entry as the key
-    foreach my $originalId (@{$reversedMappedIds{$userEntry}}) {
-      my @allItems = ($originalId, @items); # put the original user entry at the beginning of the results
+    foreach my $originalId (keys(%mappedIds)) {
+			my @allItems = ($originalId, @items); # put the original user entry at the beginning of the results
       $output{$userEntry} = \@allItems;
-    }
+		}
   }
   return \%output;
 }
