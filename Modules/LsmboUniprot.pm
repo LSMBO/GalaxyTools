@@ -163,6 +163,7 @@ sub getTabularFromProteinIdsWithoutIdMapping {
 sub getTabularFromProteinIdsWithIdMapping {
   my ($fieldsPtr, $idsPtr, $from, $to, $taxonId) = @_;
   my $mappedIds = idmapping($from, $to, $taxonId, @{$idsPtr});
+	# print Dumper($mappedIds);
   return getTabularFromProteinIds($fieldsPtr, $mappedIds);
 }
 
@@ -217,6 +218,7 @@ sub idmapping {
 
 sub sendSimpleGetRequest {
   my ($url) = @_;
+	# print "Send GET request to $url\n";
   my $contact = LsmboFunctions::getContactMailAddress();
   my $agent = LWP::UserAgent->new(agent => "libwww-perl $contact");
   my $request = HTTP::Request->new(GET => $url);
@@ -263,6 +265,12 @@ sub getTabularFromProteinIds{
   my %mappedIds = %{$mappedIdsPtr}; # user entry => accession
   my @inputIds = sort(values(%mappedIds)); # list of accession numbers
 	
+	# reverse the mapping, will be used later
+	my %reversedMappedIds;
+  while(my ($key, $value) = each %mappedIds) {
+    push(@{$reversedMappedIds{$value}}, $key);
+  }
+	
   # always search id and accession, even if they are already requested (this will help us tie together input and output)
   my @fields = @{$fieldsPtr};
   push(@fields, "id", "accession");
@@ -289,7 +297,7 @@ sub getTabularFromProteinIds{
       $userEntry = $id;
 		}
     # add the items to hash, with the user entry as the key
-    foreach my $originalId (keys(%mappedIds)) {
+    foreach my $originalId (@{$reversedMappedIds{$userEntry}}) {
 			my @allItems = ($originalId, @items); # put the original user entry at the beginning of the results
       $output{$userEntry} = \@allItems;
 		}

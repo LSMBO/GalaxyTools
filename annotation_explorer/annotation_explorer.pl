@@ -9,7 +9,6 @@ use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(extractListEntries getLinesPerIds parameters randomSubset stderr);
 use LsmboExcel qw(extractIds getValue setColumnsWidth writeExcelLine writeExcelLineF);
-# use LsmboRest qw(getQuickGOVersion REST_GET REST_POST_Uniprot_tab UNIPROT_RELEASE);
 use LsmboRest qw(getQuickGOVersion REST_GET);
 use LsmboUniprot qw(REST_POST_Uniprot_tab_legacy UNIPROT_RELEASE);
 
@@ -121,7 +120,6 @@ sub prepareInputFile {
         # copy the excel file locally, otherwise it's not readable (i guess the library does not like files without the proper extension)
         copy($PARAMS{"proteins"}{"excelFile"}, $inputCopy);
         # open the output file
-        #open(OUT, ">$inputFile") or stderr("Can't write to file '$inputFile'", 1);
         open(my $fh, ">", $inputFile) or stderr("Can't write to file '$inputFile': $!");
         my @ids = extractIds($inputCopy, $PARAMS{"proteins"}{"sheetNumber"}, $PARAMS{"proteins"}{"cellAddress"}, $inputFile);
         foreach my $id (@ids) {
@@ -135,11 +133,12 @@ sub prepareInputFile {
 
 sub looksLikeGOTerm {
     my @ids = keys(%{$_[0]});
-    # only check 10 random ids
-    foreach my $id (randomSubset(10, \@ids)) {
-        # print "ABU $id => ".($id !~ m/^GO:\d+$/ ? 0 : 1)."\n";
+    # only check 10 random ids at most
+		my $nb = scalar(@ids) < 10 ? scalar(@ids) : 10;
+    foreach my $id (randomSubset($nb, \@ids)) {
         return 0 if($id !~ m/^GO:\d+$/);
     }
+		# default is to consider protein IDs, since the interface does not suggest GO IDs
     return 1;
 }
 
@@ -152,9 +151,7 @@ sub retrieveFromUniprot {
     my @fields = ("accession", "id", "protein_name", "gene_primary", "gene_synonym", "organism_name", "go_p", "go_c", "go_f", "go_id"); # new fields
 
     my %fullGoList;
-    # my %lines = %{REST_POST_Uniprot($file, "tab", $from, "ACC", $columns)};
     my %lines = %{REST_POST_Uniprot_tab_legacy($file, "UniProtKB_AC-ID", \@fields, undef)};
-    # print Dumper(\%lines);
     # extract uniprot version
     my $version = delete($lines{UNIPROT_RELEASE()});
     
@@ -162,27 +159,11 @@ sub retrieveFromUniprot {
     foreach my $key (keys(%lines)) {
         my @items = @{$lines{$key}};
         foreach my $go (split("; ", $items[10])) {
-            $fullGoList{$go} = 1;
+            $fullGoList{$go} = 1 if($go =~ m/^GO:\d+$/); # for some reason, the header was found here ('Gene Ontology IDs')
         }
     }
-    # foreach my $line (values(%lines)) {
-        # my @items = split(/\t/, $line);
-        # # items[0] corresponds to the user input
-        # foreach my $go (split("; ", $items[8])) {
-            # $fullGoList{$go} = 1;
-        # }
-    # }
-    # my @lines = REST_POST_Uniprot($file, "tab", $from, "ACC", $columns);
-    # for(my $i = 1; $i < scalar(@lines); $i++) { # skip first line (headers)
-        # my @items = split(/\t/, $lines[$i]);
-        # foreach my $go (split("; ", $items[8])) {
-            # $fullGoList{$go} = 1;
-        # }
-    # }
-    my @lines = values(%lines);
     # return a non-redondant list of GO
     my @goList = sort(keys(%fullGoList));
-    # return (\@lines, \@goList, $version);
     return (\%lines, \@goList, $version);
 }
 
@@ -247,7 +228,6 @@ sub createExcelFile {
     my ($outputFile) = @_;
 
     print "Generation of the final Excel output file '$outputFile'\n";
-    # my $workbook = Excel::Writer::XLSX->new($outputFile);
     my $workbook;
     if($PARAMS{"proteins"}{"source"} ne "xlsx") {
         $workbook = Excel::Writer::XLSX->new($outputFile);
@@ -310,6 +290,7 @@ sub addMainSheet {
 
 sub addProteinSheet {
     my ($workbook, $data, $addCategories) = @_;
+		# print Dumper($data);
     
     # my $rowNumber = 0;
     my $worksheet = $workbook->add_worksheet("Proteins");
@@ -329,7 +310,7 @@ sub addProteinSheet {
     my %output = %{$data};
     foreach my $key (keys(%output)) {
         next if($key eq UNIPROT_RELEASE());
-        my ($user_entry, $entry, $entry_name, $prot_names, $gene_names, $synonyms, $organism, $go_bp, $go_cc, $go_mf, $go_ids) = @{$output{$key}};
+				my ($user_entry, $entry, $entry_name, $prot_names, $gene_names, $synonyms, $organism, $go_bp, $go_cc, $go_mf, $go_ids) = @{$output{$key}};
         my @biologicalProcess = extractGos($go_bp);
         my @cellularComponent = extractGos($go_cc);
         my @molecularFunction = extractGos($go_mf);
