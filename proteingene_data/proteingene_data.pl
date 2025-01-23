@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+use Data::Dumper;
 use File::Basename;
 use lib dirname(__FILE__)."/../Modules";
 use LsmboFunctions qw(booleanToString checkUniprotFrom decompressGunzip extractListEntries getLinesPerIds parameters stderr);
@@ -89,6 +90,7 @@ if($PARAMS{"proteins"}{"source"} eq "list") {
 my ($fullDataPerLinePtr, $linesPerIdPtr) = getLinesPerIds($inputFile, ($PARAMS{"proteins"}{"source"} ne "xlsx"));
 my %fullDataPerLine = %{$fullDataPerLinePtr};
 my %linesPerId = %{$linesPerIdPtr};
+# print Dumper(\%linesPerId)."\n";
 
 my %output;
 if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
@@ -106,6 +108,7 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     $taxo = $PARAMS{"identifierTypes"}{"organism"} if(exists($PARAMS{"identifierTypes"}{"organism"}));
     # %output = %{REST_POST_Uniprot_tab($inputFile, checkUniprotFrom($PARAMS{"identifierTypes"}{"from"}), $columns, $taxo)};
     %output = %{REST_POST_Uniprot_tab_legacy($inputFile, $PARAMS{"identifierTypes"}{"from"}, \@fields, $taxo)};
+		# print Dumper(\%output)."\n";
 } else {
     # put the ids in an array
     my @ids = keys(%linesPerId);
@@ -204,6 +207,7 @@ foreach my $key (keys(%output)) {
         }
     }
     # replace the user entry by the real one
+		$key = $cells[0];
     foreach my $rowNumber (@{$linesPerId{$key}}) {
         $cells[0] = $fullDataPerLine{$rowNumber};
         writeExcelLine($worksheet, $rowNumber+1, @cells);

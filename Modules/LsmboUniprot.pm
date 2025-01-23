@@ -208,6 +208,7 @@ sub idmapping {
       $mappedIds{$key} = $mapping{$key};
     }
   }
+	# print Dumper(\%mappedIds)."\n";
   return \%mappedIds;
 }
 
@@ -228,6 +229,7 @@ sub sendSimpleGetRequest {
 
 sub sendGetRequest {
   my ($url) = @_;
+	# print "sendGetRequest\n";
   # set a default timer of 60 seconds
   my $timer = 0;
   while($timer <= $DEFAULT_MAX_WAIT_TIME) {
@@ -291,9 +293,11 @@ sub getTabularFromProteinIds{
     my $id = pop(@items);
     # searches the original user entry in %mappedIds and either $acc or $id
     my $userEntry = "";
-    if(exists($mappedIds{$acc})) {
+    # if(exists($mappedIds{$acc})) {
+		if(grep(/$acc/, @inputIds)) {
       $userEntry = $acc;
-		} elsif(exists($mappedIds{$id})) {
+		# } elsif(exists($mappedIds{$id})) {
+		} elsif(grep(/$id/, @inputIds)) {
       $userEntry = $id;
 		}
     # add the items to hash, with the user entry as the key
@@ -414,10 +418,13 @@ sub get_id_mapping_results_search {
     # TODO test if KO
     my $json = decode_json($response->decoded_content);
     foreach my $output (@{$json->{"results"}}) {
+			# TODO idmapping can return multiple ids for one input id, currently we only return the last id
+      # print $output->{"from"}." = ".$output->{"to"}{"primaryAccession"}."\n";
       $mappedIds{$output->{"from"}} = $output->{"to"}{"primaryAccession"};
     }
     $url = get_next_link($response);
   }
+	# print Dumper(\%mappedIds)."\n";
   return \%mappedIds;
 }
 
