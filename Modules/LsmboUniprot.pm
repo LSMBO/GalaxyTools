@@ -17,7 +17,7 @@ our @EXPORT = qw(getUniprotRelease getFastaFromTaxonomyIds getFastaFromProteinId
 
 my $DEFAULT_NB_IDS = 250;
 my $DEFAULT_SLEEP = 2;
-my $DEFAULT_MAX_WAIT_TIME = 120;
+my $DEFAULT_MAX_WAIT_TIME = 300; # 2 minutes per default, increased to 5
 my $DEFAULT_TO = "UniProtKB";
 my $LAST_UNIPROT_RELEASE = "";
 my $REST_URL = "https://rest.uniprot.org";
