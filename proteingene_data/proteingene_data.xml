@@ -39,6 +39,7 @@
                 <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />
             </when>
             <when value="Gene_Name">
+								<param type="boolean" checked="true" name="toAllTrembl" label="Include TrEMBL IDs" help="Disable this if you know your gene names will match to Swiss-Prot IDs (it will be faster)" />
                 <param name="organism" label="Organism taxonomy identifier" type="integer" area="true" value="" />
                 <param type="boolean" checked="false" name="addOrthoDb" label="Add OrthoDB links into the output" help="" />
                 <param type="boolean" checked="false" name="addInterPro" label="Add InterPro links unto the output" help="" />

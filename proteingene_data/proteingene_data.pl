@@ -21,6 +21,9 @@ my ($paramFile, $outputFile) = @ARGV;
 my %PARAMS = %{parameters($paramFile)};
 my %MONTH = ( JAN => 1, FEB => 2, MAR => 3, APR => 4, MAY => 5, JUN => 6, JUL => 7, AUG => 8, SEP => 9, OCT => 10, NOV => 11, DEC => 12 );
 $PARAMS{"identifierTypes"}{"from"} = "UniProtKB_AC-ID" if($PARAMS{"identifierTypes"}{"from"} eq "ACC_ID"); # to be sure that the new tag is correct
+$PARAMS{"identifierTypes"}{"to"} = "UniProtKB-Swiss-Prot" if($PARAMS{"identifierTypes"}{"from"} eq "ACC_ID"); # to be sure that the new tag is correct
+my $to = "";
+$to = "UniProtKB-Swiss-Prot" if($PARAMS{"identifierTypes"}{"from"} eq "Gene_Name" && exists($PARAMS{"identifierTypes"}{"toAllTrembl"}) && booleanToString($PARAMS{"identifierTypes"}{"toAllTrembl"}) eq "false");
 my $addOrthoDb = "false";
 $addOrthoDb = booleanToString($PARAMS{"identifierTypes"}{"addOrthoDb"}) if($PARAMS{"identifierTypes"}{"from"} ne "NCBI");
 my $addInterPro = "false";
@@ -90,7 +93,6 @@ if($PARAMS{"proteins"}{"source"} eq "list") {
 my ($fullDataPerLinePtr, $linesPerIdPtr) = getLinesPerIds($inputFile, ($PARAMS{"proteins"}{"source"} ne "xlsx"));
 my %fullDataPerLine = %{$fullDataPerLinePtr};
 my %linesPerId = %{$linesPerIdPtr};
-# print Dumper(\%linesPerId)."\n";
 
 my %output;
 if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
@@ -106,9 +108,12 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     # add the organism id if provided
     my $taxo = "";
     $taxo = $PARAMS{"identifierTypes"}{"organism"} if(exists($PARAMS{"identifierTypes"}{"organism"}));
-    # %output = %{REST_POST_Uniprot_tab($inputFile, checkUniprotFrom($PARAMS{"identifierTypes"}{"from"}), $columns, $taxo)};
-    %output = %{REST_POST_Uniprot_tab_legacy($inputFile, $PARAMS{"identifierTypes"}{"from"}, \@fields, $taxo)};
-		# print Dumper(\%output)."\n";
+		# this function automatically calls uniprot's idmapping, but only return one match per ID
+		# it's a problem on gene names where many IDs are ignored, but ID mapping is really slow in that case
+		# a solution could be to download the idmapping data locally (100GB) but then we can't restrict gene names to the given taxonomy (calling uniprot to check that will also take forever)
+		# this solution also restrict the mapping to uniprot ids
+		# the second problem here is that the scripts calling this function (only here and annotation explorer) do not expect more than one match per ID
+		%output = %{REST_POST_Uniprot_tab_legacy($inputFile, $PARAMS{"identifierTypes"}{"from"}, \@fields, $taxo, $to)};
 } else {
     # put the ids in an array
     my @ids = keys(%linesPerId);
@@ -116,7 +121,7 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     my $tempFile = "entrez.tmp";
     entrezFetch("protein", "gp", "xml", $tempFile, @uniqIds);
     open(my $fh, "<", $tempFile) or stderr("Can't open Entrez output: $!");
-    my @items;
+    my @items; # TODO check why there is nothing in items[0]
     my $i = 0;
     while(<$fh>) {
         if(m/^[\t\s]*<GBSeq>[\t\s]*$/) { @items = ();
@@ -133,6 +138,7 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
         } elsif(m/<GBSeq_source-db>(.*)<\/GBSeq_source-db>/) { $items[8] = $1;
         } elsif(m/^[\t\s]*<\/GBSeq>[\t\s]*$/) {
             my @array = @items; # we make a copy of the array so that we store a different pointer each time
+						# TODO in a near future, the idmapping will be changed to return an array of mapped IDs, this will have to be changed here also
             $output{$ids[$i++]} = \@array; # ncbi output is in the same order as the input array @ids
         }
     }
@@ -175,6 +181,8 @@ writeExcelLineF($worksheet, 0, $formatForHeaders, @headers);
 # parse lines
 foreach my $key (keys(%output)) {
     next if($key eq UNIPROT_RELEASE());
+		# TODO the idmapping may once day return multiple IDs for one ID, which mean $output{$key} could become an array of array
+		# TODO this would require a change in how the output is displayed (the original line order will be difficult to keep)
     my @cells = @{$output{$key}};
     if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
         # we need to adjust the dates for excel: 2021-04-07 -> 2021-04-07T
@@ -211,7 +219,6 @@ foreach my $key (keys(%output)) {
     foreach my $rowNumber (@{$linesPerId{$key}}) {
         $cells[0] = $fullDataPerLine{$rowNumber};
         writeExcelLine($worksheet, $rowNumber+1, @cells);
-        #writeExcelLineT($worksheet, $rowNumber+1, $types, @cells);
         # rewrite the date cells with a date format
         foreach my $col (@dateCellIds) {
             $worksheet->write_date_time($rowNumber+1, $col, $cells[$col], $formatForDates);
