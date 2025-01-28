@@ -10,6 +10,8 @@ use List::Util qw(min shuffle);
 use LsmboFunctions;
 use LWP::UserAgent;
 use JSON::XS qw(encode_json decode_json);
+use URI;
+use URI::QueryParam;
 
 # only export these methods so they can be used without specifying the namespace
 use Exporter qw(import);
@@ -17,7 +19,7 @@ our @EXPORT = qw(getUniprotRelease getFastaFromTaxonomyIds getFastaFromProteinId
 
 my $DEFAULT_NB_IDS = 250;
 my $DEFAULT_SLEEP = 2;
-my $DEFAULT_MAX_WAIT_TIME = 300; # 2 minutes per default, increased to 5
+my $DEFAULT_MAX_WAIT_TIME = 120; # 2 minutes per default
 my $DEFAULT_TO = "UniProtKB";
 my $LAST_UNIPROT_RELEASE = "";
 my $REST_URL = "https://rest.uniprot.org";
@@ -88,12 +90,15 @@ sub getFastaFromUniprot {
 }
 
 sub REST_POST_Uniprot_tab_legacy {
-  my ($inputFile, $from, $fieldsPtr, $taxonId) = @_;
+  my ($inputFile, $from, $fieldsPtr, $taxonId, $to) = @_;
   print "Uniprot REST method for file '$inputFile', requesting tabular format for data of type '$from', requested columns are ".join(", ", @{$fieldsPtr})."\n";
+	# allow a specific destination for idmapping
+	$to = $DEFAULT_TO if(!defined($to) || $to eq "");
   # extract ids from $inputFile
   my @ids = extractIds($inputFile);
   # return the pointer of the output hash
-  return getTabularFromProteinIdsWithIdMapping($fieldsPtr, \@ids, $from, $DEFAULT_TO, $taxonId);
+  # return getTabularFromProteinIdsWithIdMapping($fieldsPtr, \@ids, $from, $DEFAULT_TO, $taxonId);
+  return getTabularFromProteinIdsWithIdMapping($fieldsPtr, \@ids, $from, $to, $taxonId);
 }
 
 sub REST_POST_Uniprot_fasta_legacy {
@@ -184,7 +189,7 @@ sub searchEntries {
     # run id mapping if requested
     my $ids = join("+OR+", map { setIdTag($_) } @ids[$i .. $stop]);
     # search the url
-    $output .= sendGetRequest($url."&query=$ids")->decoded_content;
+		$output .= sendGetRequest($url."&query=$ids")->decoded_content;
     sleep $DEFAULT_SLEEP;
   }
   return $output;
@@ -197,21 +202,57 @@ sub searchEntries {
 sub idmapping {
   my ($from, $to, $taxonId, @ids) = @_;
   my %mappedIds;
-  # avoid the hard limitation of 100000 max ids per request
-  my $maxNbIds = 85000;
-  for(my $i = 0; $i < scalar(@ids); $i += $maxNbIds) {
-    # run id mapping for this subset
-    my $stop = min($i + $maxNbIds - 1, scalar(@ids) - 1);
-    my %mapping = %{idmapping_unit($from, $to, $taxonId, @ids[$i .. $stop])};
-    # add the results to the main output
-    foreach my $key (keys(%mapping)) {
-      $mappedIds{$key} = $mapping{$key};
-    }
-  }
+	
+  # # avoid the hard limitation of 100000 max ids per request
+  # # my $maxNbIds = 85000;
+  # my $maxNbIds = 350; # Id Mapping API is not supported for mapping results with more than 500000 "mapped to" IDs
+	# # TODO in case of error 40 (too many "mapped to" IDs), we should automatically adjust the $maxNbIds value and retry until it works
+	# # TODO it's possible that only some IDs will return a large amount of IDs, so maybe reset $maxNbIds after each loop
+  # for(my $i = 0; $i < scalar(@ids); $i += $maxNbIds) {
+    # # run id mapping for this subset
+    # my $stop = min($i + $maxNbIds - 1, scalar(@ids) - 1);
+    # my %mapping = %{idmapping_unit($from, $to, $taxonId, @ids[$i .. $stop])};
+		# # add the results to the main output
+		# foreach my $key (keys(%mapping)) {
+			# $mappedIds{$key} = $mapping{$key};
+		# }
+  # }
+	
+	# limitations are 100000 max ids per request
+	# there will be an error if there are more than 500000 "mapped to" IDs, but we can't predict that in advance
+	my $maxNbIds = 10000;
+	my $nbIds = scalar(@ids);
+	my $start = 0;
+	my $nb = $maxNbIds;
+	while($start < $nbIds) {
+		my $results = undef;
+		$nb = $nb * 2 unless($nb == $maxNbIds); # give a chance to the previous number, otherwise it will keep on decreasing
+		$nb = min($nb, $nbIds - $start);
+		while(!defined($results) && $nb > 1) {
+			my $stop = $start + $nb - 1;
+			# print "ABU searching ids from $start to $stop ($nb ids)\n";
+			my @subset_ids = @ids[$start .. $stop];
+			$results = idmapping_unit($from, $to, $taxonId, @ids[$start .. $stop]);
+			$nb = int($nb / 2) unless(defined($results)); # in case the previous call fails, we search again but with half of the ids
+		}
+		if(defined($results)) {
+			my %mapping = %{$results};
+			# print "ABU success!\n";
+			# add the results to the main output
+			foreach my $key (keys(%mapping)) {
+				$mappedIds{$key} = $mapping{$key};
+			}
+			# update counters and $nbRemainingIds
+			$start += $nb;
+		} else {
+			# TODO do something better
+			die("This should not happen!!");
+		}
+	}
+	
 	# print Dumper(\%mappedIds)."\n";
   return \%mappedIds;
 }
-
 
 #######################
 ### private methods ###
@@ -240,6 +281,8 @@ sub sendGetRequest {
     } else {
       LsmboFunctions::stdwarn("The request failed with error ".$response->code." (".$response->message.") and will be run again in a few seconds") if($timer != 0);
       # die Dumper($response)."\n" if($response->code eq 429);
+      # LsmboFunctions::stdwarn("Request was $url, response is ".Dumper($response)) if($response->code eq 400);
+      return undef if($response->code eq 400);
       $timer += 10;
       sleep 10;
     }
@@ -303,6 +346,7 @@ sub getTabularFromProteinIds{
     # add the items to hash, with the user entry as the key
     foreach my $originalId (@{$reversedMappedIds{$userEntry}}) {
 			my @allItems = ($originalId, @items); # put the original user entry at the beginning of the results
+			# TODO if mappedIds contains arrays instead of a scalar value, then %output should also contain arrays
       $output{$userEntry} = \@allItems;
 		}
   }
@@ -336,7 +380,10 @@ sub idmapping_unit {
   my ($from, $to, $taxonId, @ids) = @_;
   my $map;
   my $job_id = submit_id_mapping($from, $to, $taxonId, @ids);
-  if(check_id_mapping_results_ready($job_id)) {
+  my $check = check_id_mapping_results_ready($job_id);
+  # if(check_id_mapping_results_ready($job_id)) {
+	return undef unless(defined($check));
+  if($check) {
     my $link = get_id_mapping_results_link($job_id);
     $map = get_id_mapping_results_search($link);
   }
@@ -383,6 +430,7 @@ sub check_id_mapping_results_ready {
       $timer += $DEFAULT_SLEEP;
     }
     my $response = sendGetRequest("$REST_URL/idmapping/status/$jobId");
+		return undef unless(defined($response));
     my %json = %{decode_json($response->decoded_content())};
     if(exists($json{"jobStatus"})) {
       $jobStatus = $json{"jobStatus"};
@@ -409,9 +457,23 @@ sub get_next_link {
   return "";
 }
 
+sub update_url {
+  my ($url) = @_;
+	my $parsed = URI->new($url);
+	my $query = $parsed->query_form_hash;
+	my $file_format = $query->{format} || 'json';
+	my $size = $query->{size} || 500;
+	# my $size = $query->{size} || 100;
+	$query->{size} = $size;
+	my $compressed = (lc($query->{compressed} // '') eq 'true') ? 1 : 0;
+	$parsed->query_form(%$query);
+	return $parsed->as_string;
+}
+
 # get all the results, page by page
 sub get_id_mapping_results_search {
   my ($url) = @_;
+	$url = update_url($url);
   my %mappedIds;
   while($url ne "") {
     my $response = sendGetRequest($url);
@@ -419,8 +481,14 @@ sub get_id_mapping_results_search {
     my $json = decode_json($response->decoded_content);
     foreach my $output (@{$json->{"results"}}) {
 			# TODO idmapping can return multiple ids for one input id, currently we only return the last id
+			# TODO if we want to map one ID to many, it means changing every function that rely on idmapping
+			# TODO and also change the excel output files to allow duplicating rows while keeping the same order
       # print $output->{"from"}." = ".$output->{"to"}{"primaryAccession"}."\n";
-      $mappedIds{$output->{"from"}} = $output->{"to"}{"primaryAccession"};
+      # $mappedIds{$output->{"from"}} = $output->{"to"}{"primaryAccession"};
+      # $mappedIds{$output->{"from"}} = $output->{"to"};
+			# $mappedIds{$output->{"from"}} = exists($output->{"to"}{"primaryAccession"}) ? $output->{"to"}{"primaryAccession"} : $output->{"to"}; # data is not enriched when "mapped to" ids are over 100000
+			# $mappedIds{$output->{"from"}} = ref($output->{"to"} eq "SCALAR") ? $output->{"to"} : $output->{"to"}{"primaryAccession"}; # data is not enriched when "mapped to" ids are over 100000
+			$mappedIds{$output->{"from"}} = ref($output->{"to"} eq "HASH") ? $output->{"to"}{"primaryAccession"} : $output->{"to"}; # data is not enriched when "mapped to" ids are over 100000
     }
     $url = get_next_link($response);
   }
