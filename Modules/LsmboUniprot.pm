@@ -149,7 +149,7 @@ sub getFastaFromProteinIdsWithoutIdMapping {
 sub getFastaFromProteinIdsWithIdMapping {
   my ($from, $to, $taxonId, @ids) = @_;
   my @mappedIds = values(%{idmapping($from, $to, $taxonId, @ids)}); # run idmapping first
-  return searchEntries("fasta", undef, \@mappedIds);
+	return searchEntries("fasta", undef, \@mappedIds);
 }
 
 # $fieldsPtr: the address of the array containing the requested fields (list of available fields: https://www.uniprot.org/help/return_fields)
@@ -168,8 +168,7 @@ sub getTabularFromProteinIdsWithoutIdMapping {
 sub getTabularFromProteinIdsWithIdMapping {
   my ($fieldsPtr, $idsPtr, $from, $to, $taxonId) = @_;
   my $mappedIds = idmapping($from, $to, $taxonId, @{$idsPtr});
-	# print Dumper($mappedIds);
-  return getTabularFromProteinIds($fieldsPtr, $mappedIds);
+	return getTabularFromProteinIds($fieldsPtr, $mappedIds);
 }
 
 # $format: fasta or tsv (more about formats here: https://www.uniprot.org/help/api_queries)
@@ -250,7 +249,7 @@ sub idmapping {
 		}
 	}
 	
-	# print Dumper(\%mappedIds)."\n";
+	#print Dumper(\%mappedIds)."\n";
   return \%mappedIds;
 }
 
@@ -385,6 +384,7 @@ sub idmapping_unit {
 	return undef unless(defined($check));
   if($check) {
     my $link = get_id_mapping_results_link($job_id);
+		#print("$link\n");
     $map = get_id_mapping_results_search($link);
   }
   return $map;
@@ -488,7 +488,7 @@ sub get_id_mapping_results_search {
       # $mappedIds{$output->{"from"}} = $output->{"to"};
 			# $mappedIds{$output->{"from"}} = exists($output->{"to"}{"primaryAccession"}) ? $output->{"to"}{"primaryAccession"} : $output->{"to"}; # data is not enriched when "mapped to" ids are over 100000
 			# $mappedIds{$output->{"from"}} = ref($output->{"to"} eq "SCALAR") ? $output->{"to"} : $output->{"to"}{"primaryAccession"}; # data is not enriched when "mapped to" ids are over 100000
-			$mappedIds{$output->{"from"}} = ref($output->{"to"} eq "HASH") ? $output->{"to"}{"primaryAccession"} : $output->{"to"}; # data is not enriched when "mapped to" ids are over 100000
+			$mappedIds{$output->{"from"}} = ref($output->{"to"}) eq "HASH" ? $output->{"to"}{"primaryAccession"} : $output->{"to"}; # data is not enriched when "mapped to" ids are over 100000
     }
     $url = get_next_link($response);
   }
