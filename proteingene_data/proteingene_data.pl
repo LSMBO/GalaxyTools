@@ -125,18 +125,19 @@ if($PARAMS{"identifierTypes"}{"from"} ne "NCBI") {
     my $i = 0;
     while(<$fh>) {
         if(m/^[\t\s]*<GBSeq>[\t\s]*$/) { @items = ();
-        } elsif(m/<GBSeq_locus>(.*)<\/GBSeq_locus>/) { $items[1] = $1;
-        } elsif(m/<GBSeq_accession-version>(.*)<\/GBSeq_accession-version>/) { $items[2] = $1;
-        } elsif(m/<GBSeq_definition>(.*)<\/GBSeq_definition>/) { $items[3] = $1;
-        } elsif(m/<GBSeq_create-date>(.*)<\/GBSeq_create-date>/) { $items[9] = formatNcbiDate($1);
-        } elsif(m/<GBSeq_update-date>(.*)<\/GBSeq_update-date>/) { $items[10] = formatNcbiDate($1);
-        } elsif(m/<GBSeq_comment>([^\.]*\.).*<\/GBSeq_comment>/) { $items[4] = $1;
-        } elsif(m/<GBSeq_organism>(.*)<\/GBSeq_organism>/) { $items[5] = $1;
-        } elsif(m/<GBQualifier_name>gene<\/GBQualifier_name>/) { $items[6] = "#####";
-        } elsif(m/<GBQualifier_value>(.*)<\/GBQualifier_value>/ && $items[6] && $items[6] eq "#####") { $items[6] = $1;
-        } elsif(m/<GBQualifier_value>GeneID:(.*)<\/GBQualifier_value>/) { $items[7] = $1;
-        } elsif(m/<GBSeq_source-db>(.*)<\/GBSeq_source-db>/) { $items[8] = $1;
+        } elsif(m/<GBSeq_locus>(.*)<\/GBSeq_locus>/) { $items[1] = $1; # locus
+        } elsif(m/<GBSeq_accession-version>(.*)<\/GBSeq_accession-version>/) { $items[2] = $1; # identifier
+        } elsif(m/<GBSeq_definition>(.*)<\/GBSeq_definition>/) { $items[3] = $1; # description
+        } elsif(m/<GBSeq_create-date>(.*)<\/GBSeq_create-date>/) { $items[9] = formatNcbiDate($1); #creation date
+        } elsif(m/<GBSeq_update-date>(.*)<\/GBSeq_update-date>/) { $items[10] = formatNcbiDate($1); # last update
+        } elsif(m/<GBSeq_comment>([^\.]*\.).*<\/GBSeq_comment>/) { $items[4] = $1; # reviewed
+        } elsif(m/<GBSeq_organism>(.*)<\/GBSeq_organism>/) { $items[5] = $1; # organism
+        } elsif(m/<GBQualifier_name>gene<\/GBQualifier_name>/) { $items[6] = "#####"; # gene name
+        } elsif(m/<GBQualifier_value>(.*)<\/GBQualifier_value>/ && $items[6] && $items[6] eq "#####") { $items[6] = $1; # gene name
+        } elsif(m/<GBQualifier_value>GeneID:(.*)<\/GBQualifier_value>/) { $items[7] = $1; # gene id
+        } elsif(m/<GBSeq_source-db>(.*)<\/GBSeq_source-db>/) { $items[8] = $1; # source
         } elsif(m/^[\t\s]*<\/GBSeq>[\t\s]*$/) {
+            $items[0] = $uniqIds[$i]; # query id
             my @array = @items; # we make a copy of the array so that we store a different pointer each time
 						# TODO in a near future, the idmapping will be changed to return an array of mapped IDs, this will have to be changed here also
             $output{$ids[$i++]} = \@array; # ncbi output is in the same order as the input array @ids
@@ -215,7 +216,7 @@ foreach my $key (keys(%output)) {
         }
     }
     # replace the user entry by the real one
-		$key = $cells[0];
+    $key = $cells[0];
     foreach my $rowNumber (@{$linesPerId{$key}}) {
         $cells[0] = $fullDataPerLine{$rowNumber};
         writeExcelLine($worksheet, $rowNumber+1, @cells);
