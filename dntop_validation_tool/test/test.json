@@ -6,7 +6,7 @@
     "cSeq": "sequence",
     "cMod": "modifications",
     "cQid": "initial_query_id",
-    "cDpm": "#databank_protein_matches",
+    "cDpm": "__pd__databank_protein_matches",
     "cRT": "rt",
     "rtUnit": "min"
   },
