@@ -33,8 +33,10 @@ my @geneIds = sort { $a <=> $b } keys(%DATA);
 
 # extract the kegg taxonomy from %DATA
 my $keggTaxonomy = getKeggTaxonomy();
-getKeggPathways($keggTaxonomy);
-linkKeggPathways($keggTaxonomy);
+if($keggTaxonomy ne "") {
+	getKeggPathways($keggTaxonomy);
+	linkKeggPathways($keggTaxonomy);
+}
 
 # clean directory if any
 remove_tree("./$taxonomyName");
@@ -245,6 +247,7 @@ sub getUniprotData {
         $PROTEIN_NAME{$acc} = $name;
         my @goList = split(/; /, $goIds);
         #$keggIds =~ s/\://g;
+				print "$keggIds\n" unless($keggIds eq "");
         my @keggList = split(/;/, $keggIds);
         foreach my $geneId (split(/;/, $geneIds)) {
             $DATA{$geneId}{"acc"} = $acc; # SwissProt accession.txt
@@ -277,14 +280,14 @@ sub getKeggTaxonomy {
         }
         last if($name ne ""); # stop after first match
     }
-    print "Kegg taxonomy is $name\n";
+    print "Kegg taxonomy is '$name'\n";
     return $name;
 }
 
 sub getKeggPathways {
     my ($taxonomy) = @_;
     
-    print "Download Kegg pathways for taxonomy $taxonomy\n";
+    print "Download Kegg pathways for taxonomy '$taxonomy'\n";
     
     my $url = "http://rest.kegg.jp/list/pathway/$taxonomy";
     print "REST url: $url\n";
@@ -303,8 +306,11 @@ sub getKeggPathways {
             # path:hsa04610	Complement and coagulation cascades - Homo sapiens (human)
             # path:ath00010	Glycolysis / Gluconeogenesis - Arabidopsis thaliana (thale cress)
             # $line =~ m/path:($taxonomy\d*)\t(.*)/;
-            $line =~ m/path:($taxonomy.*)\t(.*)/;
-            $KEGG_NAMES{$1} = $2;
+            #$line =~ m/path:($taxonomy.*)\t(.*)/;
+            #$KEGG_NAMES{$1} = $2;
+						if($line =~ m/path:($taxonomy.*)\t(.*)/) {
+							$KEGG_NAMES{$1} = $2;
+						}
         }
     } else {
         stderr(__FILE__.":".__LINE__.": HTTP GET error code:".$response->code." with message: ".$response->message);
@@ -314,7 +320,7 @@ sub getKeggPathways {
 sub linkKeggPathways {
     my ($taxonomy) = @_;
     
-    print "Download Kegg pathways for taxonomy $taxonomy\n";
+    print "Download Kegg pathways for taxonomy '$taxonomy'\n";
     
     my $url = "http://rest.kegg.jp/link/pathway/$taxonomy";
     print "REST url: $url\n";
