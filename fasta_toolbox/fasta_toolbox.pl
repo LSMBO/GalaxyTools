@@ -289,6 +289,8 @@ sub createMetadataFile {
   print $fh "- Fasta file: $fastaFile$n";
   if($PARAMS{"toolbox"}{"action"} eq "generate" || $PARAMS{"toolbox"}{"action"} eq "proteome") {
     if($PARAMS{"toolbox"}{"action"} eq "generate") {
+      # TODO add the taxonomy names
+      # TODO add the number of proteins for each taxonomy (before any removal)
       print $fh "- Taxonomies added: ".$PARAMS{"toolbox"}{"taxo"}."$n";
     } else {
       print $fh "- Reference proteomes added: ".$PARAMS{"toolbox"}{"taxo"}."$n";

@@ -116,7 +116,7 @@ sub storeSourceProtein {
   my $file = getFile($acc, $SOURCE_DIR);
   $PROTEINS{$acc}{"source"}{"file"} = $file;
   $PROTEINS{$acc}{"source"}{"description"} = $description;
-  $PROTEINS{$acc}{"source"}{"length"} = length($content);
+  $PROTEINS{$acc}{"source"}{"length"} = length($content); # FIXME store the length of the sequence only
   chomp $content;
   open(my $fh, ">", "$file") or printa("Error: Can't create file $file: $!");
   print $fh $content;
@@ -231,7 +231,7 @@ sub storeRefProtein {
   foreach my $id (@{$REFERENCES{$acc}}) {
     $PROTEINS{$id}{"ref"}{$acc}{"file"} = $file;
     $PROTEINS{$id}{"ref"}{$acc}{"description"} = $description;
-    $PROTEINS{$id}{"ref"}{$acc}{"length"} = length($content);
+    $PROTEINS{$id}{"ref"}{$acc}{"length"} = length($content); # FIXME store the length of the sequence only
   }
   chomp $content;
   open(my $fh, ">", "$file") or printa("Error: Can't create file $file: $!");

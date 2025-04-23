@@ -310,6 +310,8 @@ sub addProteinSheet {
     my %output = %{$data};
     foreach my $key (keys(%output)) {
         next if($key eq UNIPROT_RELEASE());
+				# TODO the idmapping may once day return multiple IDs for one ID, which mean $output{$key} could become an array of array
+				# TODO this would require a change in how the output is displayed (the original line order will be difficult to keep)
 				my ($user_entry, $entry, $entry_name, $prot_names, $gene_names, $synonyms, $organism, $go_bp, $go_cc, $go_mf, $go_ids) = @{$output{$key}};
         my @biologicalProcess = extractGos($go_bp);
         my @cellularComponent = extractGos($go_cc);

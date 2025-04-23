@@ -1,5 +1,5 @@
 <macros>
     <xml name='crap'>
-        <param name='contaminants' type='boolean' checked='yes' label='Include contaminant proteins' help='118 contaminant proteins, updated on June 02 2021' />
+        <param name='contaminants' type='boolean' checked='yes' label='Include contaminant proteins' help='97 contaminant proteins, updated on August 04 2022' />
     </xml>
 </macros>

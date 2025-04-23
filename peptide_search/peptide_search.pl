@@ -121,6 +121,7 @@ while(<$fh>) {
   }
 }
 close $fh;
+# TODO add a final search for the last protein !!!
 
 # add the missing peptides in the first sheet
 my @missingPeptides;
@@ -142,7 +143,8 @@ setColumnsWidth($sheet2, 25, 25, 25, 10, 10, 10, 25, 10);
 $workbook->close();
 unlink($inputCopy) if(-f $inputCopy);
 unlink($fasta) if($PARAMS{"proteins"}{"source"} ne "fasta");
-print("End of script\n");
+# print("End of script\n");
+print("Correct ending of the script\n");
 
 exit;
 
