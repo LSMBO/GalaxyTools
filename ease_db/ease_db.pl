@@ -247,7 +247,6 @@ sub getUniprotData {
         $PROTEIN_NAME{$acc} = $name;
         my @goList = split(/; /, $goIds);
         #$keggIds =~ s/\://g;
-				print "$keggIds\n" unless($keggIds eq "");
         my @keggList = split(/;/, $keggIds);
         foreach my $geneId (split(/;/, $geneIds)) {
             $DATA{$geneId}{"acc"} = $acc; # SwissProt accession.txt
