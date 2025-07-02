@@ -35,10 +35,13 @@ temp_excel = "blast_result_temp.xlsx"
 temp2_excel = "résultat_dbPTM.xlsx"
 
 try:
-    df = pd.read_excel(input_excel) 
+    with open(input_excel, 'rb') as f:
+        excel_data = BytesIO(f.read())
+    df = pd.read_excel(excel_data, engine='openpyxl') 
 except Exception as e:
     print(f"Erreur lors de la lecture du fichier Excel : {e}")
     exit()
+
 
 
 

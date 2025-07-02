@@ -12,7 +12,7 @@ import json
 import os
 
 
-def align_sequences_and_save_to_json(input_file, output_json = "data/alignment_results_test.json"):
+def align_sequences_and_save_to_json(input_file, output_json = "alignment_results.json"):
     # Paramètres d'alignement
     matrix = substitution_matrices.load("BLOSUM62")
     gap_open_penality = -3 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
 
 
-def extract_alignment_for_position(blast_result_file,output_file,json_file = "data/alignment_results.json"):
+def extract_alignment_for_position(blast_result_file,output_file,json_file = "alignment_results.json"):
     df_blast = pd.read_excel(blast_result_file, engine='openpyxl')
 
     with open(json_file, 'r', encoding='utf-8') as f:
@@ -211,7 +211,7 @@ if __name__ == "__main__":
 import pandas as pd
 import json
 import re
-def position(blast_results_file,json_file = "data/filtered_phospho_data.json"):
+def position(blast_results_file,json_file = "filtered_phospho_data.json"):
 
     # Lire le fichier Excel
     blast_df = pd.read_excel(blast_results_file, engine='openpyxl')
