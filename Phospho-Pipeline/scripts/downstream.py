@@ -16,13 +16,13 @@ import os
 def downstream(file_path):
     # Charger le fichier Excel
     
-    df = pd.read_excel(file_path)
+    df = pd.read_excel(file_path, engine='openpyxl')
     
     # Liste des IDs de protéines sans doublons, ordre conservé
     protein_list = list(dict.fromkeys(df['sseqid']))
     
     # Fichier de sauvegarde
-    json_path = "data/protein_data_downstream_test.json"
+    json_path = "protein_data_downstream_test.json"
     
     # Charger les données déjà existantes si disponibles
     if os.path.exists(json_path):

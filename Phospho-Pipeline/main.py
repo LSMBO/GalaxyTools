@@ -6,6 +6,7 @@ Created on Mon Apr 28 14:26:30 2025
 """
 import sys
 import pandas as pd
+from io import BytesIO
 import scripts.récupération_séquence as recuperation_sequence
 import scripts.blast_local as blast_local
 import scripts.site_table as site_table 
@@ -13,22 +14,25 @@ import scripts.upstream as upstream
 import scripts.downstream as downstream
 import scripts.alignement as alignement 
 import scripts.ajout_info_downstream_upstream as ajout_info_down_up
+import scripts.recup_nom_prot as  recup_nom
+import scripts.recup_dbPTM as recup_dbPTM
+import scripts.tri_dbPTM as tri_dbPTM
+import scripts.récupération_infos_uniprot as infos_uniprot
 
+print(sys.argv)
 input_excel = sys.argv[1]
 output_excel = sys.argv[2]
 output_csv = sys.argv[3]
 
-if len(sys.argv) > 4:
-    fasta_file_bear = sys.argv[4]
-else:
-    fasta_file_bear = "nouveau_sequences_ours.fasta" 
+fasta_file_bear = sys.argv[4]
+fasta_file_humain = sys.argv[5]
 
 #input_excel = "data/File_phospho_for_leo_reduit.xlsx"
 #output_excel = "data/blast_result_final_test.xlsx"
 #output_csv = "data/protein_sequences.csv"
 
-
-temp_excel = "data/blast_result_temp.xlsx"
+temp_excel = "blast_result_temp.xlsx"
+temp2_excel = "résultat_dbPTM.xlsx"
 
 try:
     df = pd.read_excel(input_excel) 
@@ -53,7 +57,7 @@ print(f"Les résultats ont été enregistrés dans {output_csv}")
 
 
 ## Blast local 
-fasta_file_humain = "data/prot_humaine.fasta"
+#fasta_file_humain = "data/prot_humaine.fasta"
 blast_local.run_blast_analysis(output_csv, fasta_file_humain, temp_excel)
 
 
@@ -64,7 +68,7 @@ blast_local.add_sequences_to_blast_results(temp_excel,fasta_file_humain, output_
 
 # Charger les fichiers
 
-blast_df = pd.read_excel(temp_excel)
+blast_df = pd.read_excel(temp_excel, engine='openpyxl')
 
 
 
@@ -103,8 +107,15 @@ alignement.position(output_excel)
 
 ajout_info_down_up.ajout_info(output_excel)
 
+## récupération infos dbPTM
+recup_nom.add_protein_names_to_excel(output_excel, fasta_file_humain, temp2_excel) 
+recup_dbPTM.site_table(temp2_excel)
+tri_dbPTM.process_matching_sites(temp2_excel, output_excel)
 
- 
+## récupération uniprot 
+df2 = pd.read_excel(output_excel, engine='openpyxl')
+protein_ids = df2['sseqid'].dropna().unique().tolist()
+infos_uniprot.get_post_translational_modifications(protein_ids, output_excel)
 
 
 

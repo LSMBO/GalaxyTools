@@ -35,7 +35,7 @@ def main():
 
     
     try:
-        df = pd.read_excel(input_excel, header=None) 
+        df = pd.read_excel(input_excel, engine='openpyxl', header=None) 
         df = find_column_header(df, "Protein")  
     except Exception as e:
         print(f"Erreur lors de la lecture du fichier Excel : {e}")

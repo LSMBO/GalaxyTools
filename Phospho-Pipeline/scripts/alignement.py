@@ -12,14 +12,13 @@ import json
 import os
 
 
-
 def align_sequences_and_save_to_json(input_file, output_json = "data/alignment_results_test.json"):
     # Paramètres d'alignement
     matrix = substitution_matrices.load("BLOSUM62")
     gap_open_penality = -3 
     gap_extend_penality = -1
     # Charger les séquences du fichier Excel
-    df = pd.read_excel(input_file)
+    df = pd.read_excel(input_file, engine='openpyxl')
 
     # Charger les résultats déjà enregistrés si le fichier existe
     if os.path.exists(output_json):
@@ -113,7 +112,7 @@ if __name__ == "__main__":
 
 
 def extract_alignment_for_position(blast_result_file,output_file,json_file = "data/alignment_results.json"):
-    df_blast = pd.read_excel(blast_result_file)
+    df_blast = pd.read_excel(blast_result_file, engine='openpyxl')
 
     with open(json_file, 'r', encoding='utf-8') as f:
         alignments_data = json.load(f)
@@ -172,7 +171,10 @@ def extract_alignment_for_position(blast_result_file,output_file,json_file = "da
         df_blast.at[idx, 'alignement'] = subject_char if subject_char else 'gap'
         df_blast.at[idx, 'position_subject'] = subject_pos if subject_pos else 'gap'
 
-    df_blast.to_excel(output_file, index=False)
+    temp_xlsx_file = output_file + ".xlsx"
+    df_blast.to_excel(temp_xlsx_file, index=False, engine='openpyxl')
+    os.rename(temp_xlsx_file, output_file)
+    
     print(f"✅ Résultats enregistrés dans {output_file}")
 
 # Exemple d'appel
@@ -212,7 +214,7 @@ import re
 def position(blast_results_file,json_file = "data/filtered_phospho_data.json"):
 
     # Lire le fichier Excel
-    blast_df = pd.read_excel(blast_results_file)
+    blast_df = pd.read_excel(blast_results_file, engine='openpyxl')
     
     # Charger les données JSON
     with open(json_file, 'r') as f:

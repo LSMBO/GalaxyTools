@@ -13,19 +13,14 @@ import os
 import pandas as pd
 
 
-
-
-
-
-
 def site_table(file_path):
     # Chargement des identifiants de protéines depuis le fichier Excel
     
-    df = pd.read_excel(file_path)
+    df = pd.read_excel(file_path, engine='openpyxl')
     protein_list = list(dict.fromkeys(df['sseqid']))  # Évite les doublons
     
     # Fichier JSON de sauvegarde
-    json_path = "data/site_data_test.json"
+    json_path = "site_data_test.json"
     
     # Charger les données déjà existantes si disponibles
     if os.path.exists(json_path):
@@ -128,7 +123,7 @@ def site_table(file_path):
 import json
 def tri_site_table():
     # Charger les données JSON existantes
-    with open("data/site_data_test.json", "r") as json_file:
+    with open("site_data_test.json", "r") as json_file:
         phospho_data = json.load(json_file)
     
     # Nouveau dictionnaire pour stocker les données filtrées
@@ -155,7 +150,7 @@ def tri_site_table():
             filtered_phospho_data[uniprot_id] = filtered_sites
     
     # Sauvegarde des données filtrées dans un nouveau fichier JSON
-    with open("data/site_data_test.json", "w") as json_file:
+    with open("site_data_test.json", "w") as json_file:
         json.dump(filtered_phospho_data, json_file, indent=4)
     
     print("Filtrage terminé. Les données sont sauvegardées dans 'site_data_test.json'.")

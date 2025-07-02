@@ -12,13 +12,13 @@ import re
 def ajout_info(blast_results_file,):
     # Charger le fichier Excel
     
-    blast_df = pd.read_excel(blast_results_file)
+    blast_df = pd.read_excel(blast_results_file, engine='openpyxl')
     
     # Charger les fichiers JSON
-    with open("data/protein_data_downstream.json", "r") as f:
+    with open("protein_data_downstream.json", "r") as f:
         downstream_data = json.load(f)
     
-    with open("data/protein_data_upstream.json", "r") as f:
+    with open("protein_data_upstream.json", "r") as f:
         upstream_data = json.load(f)
     
     # Initialiser les colonnes pour les informations à ajouter

@@ -1,0 +1,42 @@
+<tool id ="phospho_pipeline" name="Phospho Pipeline" version="1.1.0">
+    <description>Pipeline d’annotation fonctionnelle de sites de phosphorylation à partir de données de spectrométrie de masse.</description>
+    <command detect_errors="exit_code">
+        <![CDATA[
+        $__tool_directory__/phospho_pipeline.sh $inputs $input_excel $output_excel $output_csv $bear_sequences $human_sequences
+        ]]>
+    </command>
+    <configfiles>
+        <inputs name="inputs" data_style="paths" />
+    </configfiles>
+    <inputs>
+        <param name="input_excel" type="data" format="xlsx" label="Excel Input File">
+            <help>
+                The input Excel file must contain the following columns: Protein, Position, and Peptide sequence.
+            </help>
+        </param>
+        <param name="output_excel_name" type="text" label="Output Excel File Name" value="output">
+            <help>
+                Name for the output Excel file
+            </help>
+        </param>
+        <param name="output_csv_name" type="text" label="Output CSV File Name" value="output">
+            <help>
+                Name for the output CSV file
+            </help>
+        </param>
+        <param name="bear_sequences" type="data" format="fasta" label="Bear Sequences">
+            <help>
+                Fasta file containing bear sequences
+            </help>
+        </param>
+        <param name="human_sequences" type="data" format="fasta" label="Human Sequences">
+            <help>
+                Fasta file containing human sequences
+            </help>
+        </param>
+    </inputs>
+    <outputs>
+        <data format="xlsx" name="output_excel" label="PhosphoPipeline-${output_excel_name}-${time.strftime('%Y%m%d-%H%M')}" />
+        <data format="csv" name="output_csv" label="PhosphoPipeline-${output_csv_name}-${time.strftime('%Y%m%d-%H%M')}" />
+    </outputs>
+</tool>

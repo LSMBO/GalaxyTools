@@ -13,7 +13,7 @@ from Bio import SeqIO
 from Bio.Blast.Applications import NcbiblastpCommandline
 import os
 
-def run_blast_analysis(csv_file, subject_file, output_file, output_fasta="data/sequences.fasta"):
+def run_blast_analysis(csv_file, subject_file, output_file, output_fasta="sequences.fasta"):
     """
     Fonction qui exécute un BLAST entre des séquences d'un fichier CSV et une protéine humaine d'un fichier FASTA.
     
@@ -99,10 +99,10 @@ if __name__ == "__main__":
 import pandas as pd
 from Bio import SeqIO
 
-def add_sequences_to_blast_results(blast_results_file, fasta_file, csv_file, output_file="C:/Users/brunel.leo-paul/code stage/data/blast_result_final_test.xlsx"):
+def add_sequences_to_blast_results(blast_results_file, fasta_file, csv_file, output_file="blast_result_final_test.xlsx"):
     
     # Lire les résultats du BLAST (fichier Excel)
-    df_blast = pd.read_excel(blast_results_file)
+    df_blast = pd.read_excel(blast_results_file, engine='openpyxl')
     
     # Charger les séquences du fichier CSV pour les queries
     df_sequences = pd.read_csv(csv_file)
