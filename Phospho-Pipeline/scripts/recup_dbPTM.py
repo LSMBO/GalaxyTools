@@ -10,10 +10,11 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import os
 import json
+import excel_galaxy
 
 def site_table(input_excel):
     # Charger le fichier Excel contenant la liste des protéines
-    df = pd.read_excel(input_excel, engine='openpyxl')
+    df = excel_galaxy.read_excel(input_excel)
     protein_list = list(dict.fromkeys(df['Protein_Name']))  # Éviter les doublons
     
     # Fichier JSON de sauvegarde

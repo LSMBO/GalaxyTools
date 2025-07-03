@@ -12,6 +12,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
 from Bio.Blast.Applications import NcbiblastpCommandline
 import os
+import excel_galaxy
 
 def run_blast_analysis(csv_file, subject_file, output_file, output_fasta="sequences.fasta"):
     """
@@ -74,8 +75,7 @@ def run_blast_analysis(csv_file, subject_file, output_file, output_fasta="sequen
 
     # Sauvegarder les meilleurs résultats dans un fichier Excel
     print("Sauvegarde des résultats dans le fichier Excel...")
-    best_matches.to_excel(output_file, index=False)
-
+    excel_galaxy.write_excel(best_matches, output_file)
     print(f"Résultats filtrés enregistrés dans {output_file}")
 
 
@@ -102,7 +102,7 @@ from Bio import SeqIO
 def add_sequences_to_blast_results(blast_results_file, fasta_file, csv_file, output_file="blast_result_final_test.xlsx"):
     
     # Lire les résultats du BLAST (fichier Excel)
-    df_blast = pd.read_excel(blast_results_file, engine='openpyxl')
+    df_blast = excel_galaxy.read_excel(blast_results_file)  # Utiliser le module excel_galaxy pour lire l'Excel
     
     # Charger les séquences du fichier CSV pour les queries
     df_sequences = pd.read_csv(csv_file)
@@ -127,7 +127,8 @@ def add_sequences_to_blast_results(blast_results_file, fasta_file, csv_file, out
 
     # Sauvegarder les résultats dans un fichier Excel
     print(f"Ajout des séquences dans le fichier {blast_results_file}...")
-    df_blast.to_excel(blast_results_file, index=False)  # Enregistrement avec encodage UTF-8
+    excel_galaxy.write_excel(df_blast, blast_results_file) 
+        
     print(f"Résultats avec séquences enregistrés dans {blast_results_file}")
 
 # Exemple d'appel de la fonction depuis un autre fichier Python

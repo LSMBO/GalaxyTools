@@ -7,6 +7,7 @@ Created on Tue Jun 24 10:13:01 2025
 
 import requests
 import pandas as pd
+import excel_galaxy
 
 def get_post_translational_modifications(protein_ids, input_excel, output_sheet='Infos_uniprot'):
     """
@@ -49,17 +50,13 @@ def get_post_translational_modifications(protein_ids, input_excel, output_sheet=
     df = pd.DataFrame(results)
 
     # Lire le fichier Excel contenant la colonne sseqid
-    existing_df = pd.read_excel(input_excel, engine='openpyxl')
+    existing_df = excel_galaxy.read_excel(input_excel)
 
     # Extraire les identifiants sseqid
     protein_ids_from_excel = existing_df['sseqid'].dropna().unique().tolist()  # Récupérer les IDs de la colonne sseqid
 
     # Vérifier si on a les mêmes identifiants et ajouter les résultats dans la feuille Excel
     if set(protein_ids) == set(protein_ids_from_excel):
-        with pd.ExcelWriter(input_excel, engine='openpyxl', mode='a') as writer:
-            # Ajouter les résultats dans une nouvelle feuille du fichier Excel existant
-            df.to_excel(writer, sheet_name=output_sheet, index=False)
-
-        print(f"Les résultats ont été ajoutés dans '{input_excel}' sous la feuille '{output_sheet}'.")
+        excel_galaxy.add_sheet(df, input_excel, output_sheet)
 
     return df

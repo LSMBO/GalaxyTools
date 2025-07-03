@@ -6,6 +6,7 @@ Created on Thu Jun  5 14:06:30 2025
 """
 
 import pandas as pd
+import excel_galaxy
 
 def get_protein_name_from_fasta(uniprot_id, fasta_file):
     """
@@ -35,13 +36,13 @@ def add_protein_names_to_excel(input_excel, fasta_file, output_excel):
     :param output_excel: Chemin du fichier Excel de sortie
     """
     # Charger le fichier Excel contenant les IDs UniProt
-    df = pd.read_excel(input_excel, engine='openpyxl')
+    df = excel_galaxy.read_excel(input_excel)
 
     # Créer une nouvelle colonne dans le DataFrame pour les noms de protéines
     df['Protein_Name'] = df['sseqid'].apply(lambda x: get_protein_name_from_fasta(x, fasta_file))
 
-    # Sauvegarder les résultats dans un nouveau fichier Excel
-    df.to_excel(output_excel, index=False)
+    # Sauvegarder les résultats dans un nouveau fichier 
+    excel_galaxy.write_excel(df, output_excel)
 
     print(f"Les résultats ont été enregistrés dans '{output_excel}'.")
 

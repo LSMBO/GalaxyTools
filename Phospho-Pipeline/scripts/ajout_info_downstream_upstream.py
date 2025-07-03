@@ -9,10 +9,12 @@ Created on Mon Mar 17 09:45:40 2025
 import pandas as pd
 import json
 import re
+import os
+import excel_galaxy
+
 def ajout_info(blast_results_file,):
-    # Charger le fichier Excel
-    
-    blast_df = pd.read_excel(blast_results_file, engine='openpyxl')
+    # Charger le fichier Excel en utilisant le module excel_galaxy
+    blast_df = excel_galaxy.read_excel(blast_results_file)
     
     # Charger les fichiers JSON
     with open("protein_data_downstream.json", "r") as f:
@@ -63,8 +65,7 @@ def ajout_info(blast_results_file,):
         blast_df.at[idx, 'upstream_info'] = "; ".join(relevant_upstream) if relevant_upstream else "No upstream info"
     
     # Sauvegarder dans un nouveau fichier Excel mis à jour
-    
-    blast_df.to_excel(blast_results_file, index=False)
+    excel_galaxy.write_excel(blast_df, blast_results_file)
     
     print(f"✅ Infos downstream/upstream récupérées pour la bonne protéine et site, sauvegardées dans {blast_results_file}")
     

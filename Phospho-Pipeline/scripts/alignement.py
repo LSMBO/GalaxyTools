@@ -10,15 +10,16 @@ from Bio import pairwise2
 from Bio.Align import substitution_matrices
 import json
 import os
-
+import excel_galaxy
 
 def align_sequences_and_save_to_json(input_file, output_json = "alignment_results.json"):
     # Paramètres d'alignement
     matrix = substitution_matrices.load("BLOSUM62")
     gap_open_penality = -3 
     gap_extend_penality = -1
-    # Charger les séquences du fichier Excel
-    df = pd.read_excel(input_file, engine='openpyxl')
+    
+    # Charger le fichier Excel en utilisant le module excel_galaxy
+    df = excel_galaxy.read_excel(input_file)
 
     # Charger les résultats déjà enregistrés si le fichier existe
     if os.path.exists(output_json):
@@ -112,7 +113,7 @@ if __name__ == "__main__":
 
 
 def extract_alignment_for_position(blast_result_file,output_file,json_file = "alignment_results.json"):
-    df_blast = pd.read_excel(blast_result_file, engine='openpyxl')
+    df_blast = excel_galaxy.read_excel(blast_result_file)
 
     with open(json_file, 'r', encoding='utf-8') as f:
         alignments_data = json.load(f)
@@ -171,10 +172,7 @@ def extract_alignment_for_position(blast_result_file,output_file,json_file = "al
         df_blast.at[idx, 'alignement'] = subject_char if subject_char else 'gap'
         df_blast.at[idx, 'position_subject'] = subject_pos if subject_pos else 'gap'
 
-    temp_xlsx_file = output_file + ".xlsx"
-    df_blast.to_excel(temp_xlsx_file, index=False, engine='openpyxl')
-    os.rename(temp_xlsx_file, output_file)
-    
+    excel_galaxy.write_excel(df_blast, output_file)    
     print(f"✅ Résultats enregistrés dans {output_file}")
 
 # Exemple d'appel
@@ -214,7 +212,7 @@ import re
 def position(blast_results_file,json_file = "filtered_phospho_data.json"):
 
     # Lire le fichier Excel
-    blast_df = pd.read_excel(blast_results_file, engine='openpyxl')
+    blast_df = excel_galaxy.read_excel(blast_results_file)
     
     # Charger les données JSON
     with open(json_file, 'r') as f:
@@ -238,7 +236,7 @@ def position(blast_results_file,json_file = "filtered_phospho_data.json"):
                     break  # On sort dès qu’on trouve une correspondance
     
     # Sauvegarder le fichier mis à jour
-    blast_df.to_excel(blast_results_file, index=False)
+    excel_galaxy.write_excel(blast_df, blast_results_file) 
     
     print(f"✅ Comparaison terminée. Résultats enregistrés dans {blast_results_file}")
     

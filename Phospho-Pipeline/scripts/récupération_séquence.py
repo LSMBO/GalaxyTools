@@ -6,6 +6,7 @@ Created on Tue Feb  4 09:43:04 2025
 """
 from Bio import SeqIO
 import pandas as pd
+import excel_galaxy
 
 # Fonction pour récupérer la séquence d'une protéine à partir de son identifiant dans un fichier FASTA
 def fetch_protein_sequence_from_fasta(protein_name, fasta_file):
@@ -33,9 +34,8 @@ def main():
     fasta_file = "data/nouveau_sequences_ours.fasta"
     output_csv = "data/protein_sequences.csv"
 
-    
+    df = excel_galaxy.read_excel(input_excel)
     try:
-        df = pd.read_excel(input_excel, engine='openpyxl', header=None) 
         df = find_column_header(df, "Protein")  
     except Exception as e:
         print(f"Erreur lors de la lecture du fichier Excel : {e}")

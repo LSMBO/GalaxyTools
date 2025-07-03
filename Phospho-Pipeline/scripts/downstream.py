@@ -11,18 +11,17 @@ import pandas as pd
 import json
 import time
 import os
-
+import excel_galaxy
 
 def downstream(file_path):
     # Charger le fichier Excel
-    
-    df = pd.read_excel(file_path, engine='openpyxl')
+    df = excel_galaxy.read_excel(file_path)
     
     # Liste des IDs de protéines sans doublons, ordre conservé
     protein_list = list(dict.fromkeys(df['sseqid']))
     
     # Fichier de sauvegarde
-    json_path = "protein_data_downstream_test.json"
+    json_path = "protein_data_downstream.json"
     
     # Charger les données déjà existantes si disponibles
     if os.path.exists(json_path):
@@ -117,4 +116,4 @@ def downstream(file_path):
         else:
             print(f" Trop d'essais pour {uniprot_id}, passage à la protéine suivante.")
     
-    print("\n Données sauvegardées dans le fichier JSON.")
+    print(f"\n Données sauvegardées dans le fichier JSON {json_path}.")

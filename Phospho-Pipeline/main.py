@@ -6,7 +6,7 @@ Created on Mon Apr 28 14:26:30 2025
 """
 import sys
 import pandas as pd
-from io import BytesIO
+import excel_galaxy
 import scripts.récupération_séquence as recuperation_sequence
 import scripts.blast_local as blast_local
 import scripts.site_table as site_table 
@@ -34,15 +34,7 @@ fasta_file_humain = sys.argv[5]
 temp_excel = "blast_result_temp.xlsx"
 temp2_excel = "résultat_dbPTM.xlsx"
 
-try:
-    with open(input_excel, 'rb') as f:
-        excel_data = BytesIO(f.read())
-    df = pd.read_excel(excel_data, engine='openpyxl') 
-except Exception as e:
-    print(f"Erreur lors de la lecture du fichier Excel : {e}")
-    exit()
-
-
+df = excel_galaxy.read_excel(input_excel)
 
 
 protein_list = df["Protein"].tolist()
@@ -63,15 +55,10 @@ print(f"Les résultats ont été enregistrés dans {output_csv}")
 #fasta_file_humain = "data/prot_humaine.fasta"
 blast_local.run_blast_analysis(output_csv, fasta_file_humain, temp_excel)
 
-
 blast_local.add_sequences_to_blast_results(temp_excel,fasta_file_humain, output_csv)
 
-
-
-
 # Charger les fichiers
-
-blast_df = pd.read_excel(temp_excel, engine='openpyxl')
+blast_df = excel_galaxy.read_excel(temp_excel)
 
 
 
@@ -85,8 +72,7 @@ else:
     blast_df["Peptide sequence"] = df["Peptide sequence"].values
 
     # Sauvegarder le fichier
-    blast_df.to_excel(temp_excel, index=False)
-
+    excel_galaxy.write_excel(blast_df, temp_excel)
     print(f"✅ Colonnes ajoutées et fichier enregistré sous : {temp_excel}")
 
 
@@ -116,7 +102,7 @@ recup_dbPTM.site_table(temp2_excel)
 tri_dbPTM.process_matching_sites(temp2_excel, output_excel)
 
 ## récupération uniprot 
-df2 = pd.read_excel(output_excel, engine='openpyxl')
+df2 = excel_galaxy.read_excel(output_excel)
 protein_ids = df2['sseqid'].dropna().unique().tolist()
 infos_uniprot.get_post_translational_modifications(protein_ids, output_excel)
 

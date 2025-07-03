@@ -7,7 +7,8 @@ Created on Fri Jun  6 09:52:09 2025
 
 import pandas as pd
 import json
-
+import os
+import excel_galaxy
 def process_matching_sites(input_excel, output_excel, json_path='dbPTM.json'):
     """
     Fonction pour traiter les sites de phosphorylation dans un fichier Excel et ajouter les résultats dans un fichier Excel existant.
@@ -17,7 +18,7 @@ def process_matching_sites(input_excel, output_excel, json_path='dbPTM.json'):
     :param output_excel: Chemin du fichier Excel de sortie
     """
     # Charger le fichier Excel contenant les Matching Site
-    df = pd.read_excel(input_excel, engine='openpyxl')
+    df = excel_galaxy.read_excel(input_excel)
 
     # Charger le fichier JSON contenant les informations extraites de dbPTM
     with open(json_path, 'r', encoding='utf-8') as json_file:
@@ -103,10 +104,7 @@ def process_matching_sites(input_excel, output_excel, json_path='dbPTM.json'):
     kinase_df = pd.DataFrame(kinase_results)
     description_df = pd.DataFrame(description_results)
 
-    # Ouvrir le fichier Excel existant et ajouter les nouvelles feuilles sans effacer les anciennes
-    with pd.ExcelWriter(output_excel, engine='openpyxl', mode='a') as writer:
-        # Ajouter les nouvelles feuilles
-        kinase_df.to_excel(writer, sheet_name='Kinases', index=False)
-        description_df.to_excel(writer, sheet_name='Descriptions', index=False)
+    excel_galaxy.add_sheet(kinase_df, input_excel, 'Kinases')
+    excel_galaxy.add_sheet(description_df, input_excel, 'Descriptions')
 
     print("Les résultats ont été ajoutés dans '{}'.".format(output_excel))
