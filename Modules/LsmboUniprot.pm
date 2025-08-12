@@ -17,7 +17,7 @@ use URI::QueryParam;
 use Exporter qw(import);
 our @EXPORT = qw(getUniprotRelease getFastaFromTaxonomyIds getFastaFromProteinIdsWithoutIdMapping getFastaFromProteinIdsWithIdMapping getTabularFromProteinIdsWithIdMapping getTabularFromProteinIdsWithoutIdMapping searchEntries UNIPROT_RELEASE getFastaFromUniprot REST_POST_Uniprot_tab_legacy REST_POST_Uniprot_fasta_legacy idmapping);
 
-my $DEFAULT_NB_IDS = 250;
+my $DEFAULT_NB_IDS = 100;
 my $DEFAULT_SLEEP = 2;
 my $DEFAULT_MAX_WAIT_TIME = 120; # 2 minutes per default
 my $DEFAULT_TO = "UniProtKB";
@@ -188,6 +188,7 @@ sub searchEntries {
     # run id mapping if requested
     my $ids = join("+OR+", map { setIdTag($_) } @ids[$i .. $stop]);
     # search the url
+		#print "$url&query=$ids\n";
 		$output .= sendGetRequest($url."&query=$ids")->decoded_content;
     sleep $DEFAULT_SLEEP;
   }
